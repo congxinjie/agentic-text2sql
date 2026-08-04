@@ -5,6 +5,7 @@
 ## 结构
 
 - `sqlite_query/` — 固定 SQL 查询 SQLite 数据库并打印结果
+- `customer_marketing_db/` — 客户营销数据库（虚构数据）：建库脚本 + 示例分析查询
 
 ## 约定
 
