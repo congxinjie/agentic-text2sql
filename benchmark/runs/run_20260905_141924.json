@@ -6,48 +6,36 @@
  "metrics": {
   "all": {
    "n": 40,
-   "exec_rate": 97.5,
-   "result_rate": 45.0,
-   "caliber_rate": 97.5,
-   "e2e_rate": 45.0,
-   "hallucination_rate": 0.0,
-   "p50_ms": 9605,
-   "p90_ms": 16615,
-   "max_ms": 41646
+   "exec": 97.5,
+   "res": 77.5,
+   "cal": 97.5,
+   "e2e": 77.5,
+   "hal": 0.0
   },
   "by_difficulty": {
    "simple": {
     "n": 14,
-    "exec_rate": 100.0,
-    "result_rate": 35.7,
-    "caliber_rate": 100.0,
-    "e2e_rate": 35.7,
-    "hallucination_rate": 0.0,
-    "p50_ms": 8842,
-    "p90_ms": 10296,
-    "max_ms": 11900
+    "exec": 100.0,
+    "res": 100.0,
+    "cal": 100.0,
+    "e2e": 100.0,
+    "hal": 0.0
    },
    "medium": {
     "n": 14,
-    "exec_rate": 100.0,
-    "result_rate": 57.1,
-    "caliber_rate": 100.0,
-    "e2e_rate": 57.1,
-    "hallucination_rate": 0.0,
-    "p50_ms": 7740,
-    "p90_ms": 14216,
-    "max_ms": 14647
+    "exec": 100.0,
+    "res": 78.6,
+    "cal": 100.0,
+    "e2e": 78.6,
+    "hal": 0.0
    },
    "complex": {
     "n": 12,
-    "exec_rate": 91.7,
-    "result_rate": 41.7,
-    "caliber_rate": 91.7,
-    "e2e_rate": 41.7,
-    "hallucination_rate": 0.0,
-    "p50_ms": 13633,
-    "p90_ms": 19012,
-    "max_ms": 41646
+    "exec": 91.7,
+    "res": 50.0,
+    "cal": 91.7,
+    "e2e": 50.0,
+    "hal": 0.0
    }
   }
  },
@@ -111,10 +99,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S02",
@@ -178,7 +167,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S03",
@@ -242,7 +232,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S04",
@@ -366,7 +357,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S05",
@@ -514,7 +506,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S06",
@@ -573,10 +566,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S07",
@@ -635,10 +629,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S08",
@@ -697,10 +692,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S09",
@@ -761,10 +757,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S10",
@@ -825,10 +822,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S11",
@@ -890,10 +888,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S12",
@@ -955,10 +954,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S13",
@@ -1023,7 +1023,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "S14",
@@ -1084,10 +1085,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M01",
@@ -1197,7 +1199,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M02",
@@ -1275,7 +1278,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M03",
@@ -1390,10 +1394,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M04",
@@ -1535,7 +1540,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M05",
@@ -1619,7 +1625,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M06",
@@ -1685,7 +1692,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M07",
@@ -1956,10 +1964,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M08",
@@ -2077,7 +2086,8 @@
    "result_ok": false,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M09",
@@ -2219,7 +2229,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M10",
@@ -2293,10 +2304,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M11",
@@ -2409,7 +2421,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M12",
@@ -2583,7 +2596,8 @@
    "result_ok": false,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M13",
@@ -2650,7 +2664,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "M14",
@@ -2803,7 +2818,8 @@
    "result_ok": false,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C01",
@@ -2870,7 +2886,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C02",
@@ -2948,7 +2965,8 @@
    "result_ok": false,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C03",
@@ -3017,7 +3035,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C04",
@@ -3180,7 +3199,8 @@
    "result_ok": false,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C05",
@@ -3294,7 +3314,8 @@
    "result_ok": false,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C06",
@@ -3363,7 +3384,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C07",
@@ -3448,7 +3470,8 @@
    "hallucination": false,
    "halluc_detail": [
     "失败: SQL 执行失败且自动修复未成功: near \"GROUP\": syntax error"
-   ]
+   ],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C08",
@@ -3572,10 +3595,11 @@
     }
    ],
    "exec_ok": true,
-   "result_ok": false,
+   "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C09",
@@ -3682,7 +3706,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C10",
@@ -3747,7 +3772,8 @@
    "result_ok": true,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C11",
@@ -3991,7 +4017,8 @@
    "result_ok": false,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   },
   {
    "id": "C12",
@@ -4147,7 +4174,9 @@
    "result_ok": false,
    "caliber_ok": true,
    "hallucination": false,
-   "halluc_detail": []
+   "halluc_detail": [],
+   "judged_with": "R6/R7 final (rejudged)"
   }
- ]
+ ],
+ "note": "跑时中间版判定已废弃, 逐题 result_ok/caliber_ok/hallucination 已回填为 R6/R7 最终判定; 演进对照见 rejudged_*.json"
 }
