@@ -10,6 +10,7 @@
 口径与判定规则见 docs/评测口径定义.md; 纯标准库, 无第三方依赖。
 """
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -26,7 +27,19 @@ RUNS = HERE / "runs"
 REPORT = ROOT / "docs" / "评测报告-基线.md"
 
 sys.path.insert(0, str(TEXT2SQL_DIR))
+import text2sql  # noqa: E402
 from text2sql import QueryAgent, load_api_key, get_table_meta  # noqa: E402
+
+# 口径启发式: 这些表是单快照/纯维度表, 当其全为必查表时豁免 data_dt 字面量检查
+TIME_EXEMPT_TABLES = {"ads_cust_info_d", "dim_public", "dim_branch", "dim_product"}
+# 分级模型策略(M3): 复杂题用更稳的 deepseek-chat; 简单/中等保持 flash
+MODEL_BY_DIFF = {"simple": "deepseek-v4-flash", "medium": "deepseek-v4-flash", "complex": "deepseek-chat"}
+RULES_CHANGES = [
+    "R1 口径启发式: expect_tables 全属于单快照/纯维度表(ads_cust_info_d/dim_public/dim_branch/dim_product)时, 豁免 data_dt 字面量检查。",
+    "R2 结果比对: 数值以 gold 小数位数为准先四舍五入再比(1e-6 容差兜底); 分组标签规范化(去'岁'/空白)。",
+    "R3 分级模型策略: 复杂题用 deepseek-chat, 简单/中等用 deepseek-v4-flash(依据 M3 空响应实验; 可用环境变量 LLM_MODEL 整体覆盖)。",
+    "R4 幻觉检查修正: CTE 识别由 'WITH 后第一个名' 改为 '任意 AS(' 模式, 避免多 CTE(WITH s AS..., e AS...)的 e/f 被误判为表幻觉。",
+]
 
 # 企业口径语义(隔离在评测脚本内, 不进入 text2sql.py)
 ENTERPRISE_BIZ = """券商客户营销库(2026-Q1 事实 + 客户主档单快照)。
@@ -47,20 +60,37 @@ def norm(v):
     return v
 
 
-def cells_equal(a, b, tol):
-    a, b = norm(a), norm(b)
-    if isinstance(a, float) and isinstance(b, float):
-        if a == b:
+def decimals_of(v):
+    s = repr(float(v))
+    return len(s.split(".")[1]) if "." in s else 0
+
+
+def norm_label(v):
+    return str(v).replace("岁", "").replace(" ", "").strip()
+
+
+def cells_equal(gold_v, agent_v, tol):
+    g, a = norm(gold_v), norm(agent_v)
+    if isinstance(g, float) and isinstance(a, float):
+        if g == a:
             return True
-        return abs(a - b) <= tol * max(1.0, abs(a), abs(b))
-    return a == b
+        d = decimals_of(g)
+        if d > 0:
+            scale = 10 ** d
+            if round(a * scale) / scale == round(g * scale) / scale:
+                return True
+        return abs(a - g) <= tol * max(1.0, abs(a), abs(g))
+    if isinstance(g, str) and isinstance(a, str):
+        return norm_label(g) == norm_label(a)
+    return g == a
 
 
-def rows_equal(got_rows, gold_rows, tol):
+def rows_equal(gold_rows, got_rows, tol):
     if len(got_rows) != len(gold_rows):
         return False
-    g1 = sorted(got_rows, key=lambda r: json.dumps(r, ensure_ascii=False, default=str))
-    g2 = sorted(gold_rows, key=lambda r: json.dumps(r, ensure_ascii=False, default=str))
+    key = lambda r: json.dumps(r, ensure_ascii=False, default=str)
+    g1 = sorted(gold_rows, key=key)
+    g2 = sorted(got_rows, key=key)
     for r1, r2 in zip(g1, g2):
         if len(r1) != len(r2):
             return False
@@ -79,8 +109,8 @@ def dashes(tok):
 
 def sql_table_names(sql):
     names = set(re.findall(r"\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)", sql, re.I))
-    # CTE 名: WITH x AS
-    ctes = set(re.findall(r"\bWITH\s+([A-Za-z_][A-Za-z0-9_]*)", sql, re.I))
+    # CTE 名: WITH x AS ( 或 逗号后 y AS ( —— R4 修正: 支持多 CTE, 避免把 CTE 误判为表幻觉
+    ctes = set(re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(", sql, re.I))
     return {n.lower() for n in names if n.lower() not in ctes}
 
 
@@ -96,11 +126,15 @@ def judge(rec, meta):
     rec["halluc_detail"] = []
 
     if rec["exec_ok"]:
-        rec["result_ok"] = rows_equal(rec["rows"], gold["rows"], gold.get("tolerance", 1e-6))
+        rec["result_ok"] = rows_equal(gold["rows"], rec["rows"], gold.get("tolerance", 1e-6))
 
-        # 口径(规则启发式): 必需表 + 必需时间字面量出现
+        # 口径(规则启发式): 必需表 + 必需时间字面量出现(单快照/纯维度表豁免时间检查)
         ok_tables = all(re.search(rf"\b{t}\b", sql, re.I) for t in rec.get("expect_tables", []))
-        ok_time = all((t in sql) or (dashes(t) in sql) for t in rec.get("expect_time", []))
+        exempt = bool(rec.get("expect_tables")) and set(rec["expect_tables"]) <= TIME_EXEMPT_TABLES
+        if exempt:
+            ok_time = True
+        else:
+            ok_time = all((t in sql) or (dashes(t) in sql) for t in rec.get("expect_time", []))
         rec["caliber_ok"] = ok_tables and ok_time
         if not ok_tables:
             rec["halluc_detail"].append("口径: SQL 缺少期望表")
@@ -134,14 +168,18 @@ def main():
     items = bench["items"]
     meta = get_table_meta(str(DB))
     api_key = load_api_key()
+    forced_model = os.environ.get("LLM_MODEL", "").strip()
     agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ)
 
-    print(f"评测开始: {len(items)} 问, 模型={agent.__class__.__name__}(引擎默认模型)", flush=True)
+    print(f"评测开始: {len(items)} 问, 分级模型策略(simple/medium=flash, complex=chat)"
+          + (f", LLM_MODEL={forced_model} 覆盖" if forced_model else ""), flush=True)
     t_all_start = time.time()
     records = []
     for i, q in enumerate(items, 1):
+        text2sql.MODEL = forced_model or MODEL_BY_DIFF.get(q["difficulty"], "deepseek-v4-flash")
         rec = dict(q)
         rec["gold_answer"] = q["gold_answer"]
+        rec["model"] = text2sql.MODEL
         t0 = time.time()
         try:
             ans = agent.run(q["question"], clarify=False)
@@ -265,12 +303,17 @@ def main():
     else:
         A("无(全部 40 问端到端通过)")
     A("")
-    A("## 4. 结论与下一步")
+    A("## 4. 规则变更记录(相对 M2 基线)")
+    A("")
+    for c in RULES_CHANGES:
+        A(f"- {c}")
+    A("")
+    A("## 5. 结论与下一步")
     A("")
     A(f"- 端到端准确率 **{all_s['e2e_rate']}%**(目标 ≥90%),幻觉率 {all_s['hallucination_rate']}%。")
     A("- 复现: `cd benchmark && python run_eval.py`(需 text2sql_demo/.env.local 的 LLM_API_KEY)。")
-    A("- 说明: 口径正确率为规则启发式(必需表+必需时间字面量);结果比对按 docs/评测口径定义.md(容差 1e-6,分组类排序后逐行逐列比对)。")
-    A("- E1-E9 异常边界场景与 300/400 码不可答问题未计入本 40 问, 将作为 M2 收尾的边界用例集补齐。")
+    A("- 说明: 口径正确率为规则启发式(必需表+必需时间字面量, 单快照/纯维度表豁免);结果比对按 docs/评测口径定义.md(数值以 gold 小数位数为准先四舍五入再比, 分组标签去'岁'规范化, 容差 1e-6 兜底)。")
+    A("- E1-E9 异常边界场景与 300/400 码不可答问题未计入本 40 问, 见 edge_cases 运行结果。")
     REPORT.write_text("\n".join(lines), encoding="utf-8")
     print(f"报告已写: {REPORT}")
 

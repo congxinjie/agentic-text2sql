@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "generated_at": "2026-09-05",
+    "note": "E1-E9 异常与边界场景(COMPETITION §6.3 落地); method=real 走真实 LLM, method=unit 走确定性故障注入(不消耗 LLM)",
+    "db": "Agentic智能问数在客户营销场景的应用数据集/enterprise.db"
+  },
+  "items": [
+    {"id": "E1", "scenario": "正常查询", "method": "real", "input": "各客户等级分别有多少客户?", "expected": "9 阶段走通, exec_ok 且返回非空结果", "check": "exec_ok_and_nonempty"},
+    {"id": "E2", "scenario": "缺信息可默认(仅缺时间范围)", "method": "real", "input": "全库客户总资产是多少?", "expected": "用默认口径(最新快照 20260331)继续, 结论注明假设", "check": "exec_ok_and_assumption"},
+    {"id": "E3", "scenario": "缺必填信息(指标不明, 交互追问)", "method": "real", "input": "帮我分析一下?", "expected": "clarify=True 时返回追问列表", "check": "needs_clarification"},
+    {"id": "E4", "scenario": "不可答(闲聊/库外概念/主观建议)", "method": "real", "input": "今天天气怎么样?适合买基金吗?", "expected": "answerable=false, 拒绝并给原因, 不生成 SQL", "check": "rejected_with_reason"},
+    {"id": "E5", "scenario": "SQL 生成错→自修复", "method": "unit", "input": "mock _execute 第一次抛 OperationalError, _repair_sql 返回修正 SQL", "expected": "执行失败后自动修复一次并成功, 修复后的 SQL 被执行", "check": "repair_once_ok"},
+    {"id": "E6", "scenario": "修复后仍失败→兜底报错", "method": "unit", "input": "mock _execute 持续抛错, _repair_sql 返回修正 SQL", "expected": "返回友好 error, 不崩溃, Trace 记录 FAIL", "check": "repair_then_fail"},
+    {"id": "E7", "scenario": "空结果", "method": "real", "input": "列出 2026-03-31 持有名为'不存在产品ZZZ'相关产品的客户名单", "expected": "exec_ok 且 rows 为空, 结论说明无数据/可能筛选过严", "check": "empty_result_explained"},
+    {"id": "E8", "scenario": "结果超限截断", "method": "unit", "input": "run_query(DB, 'SELECT * FROM dwd_cust_hold_d')", "expected": "truncated=True, 仅返回 MAX_ROWS 行", "check": "truncated"},
+    {"id": "E9", "scenario": "LLM 网络或 API 故障", "method": "unit", "input": "monkeypatch llm_chat 抛 RuntimeError('LLM API 连接失败')", "expected": "阶段异常被兜底, ans.error 含原因, Trace 有 FAIL", "check": "llm_fault_handled"}
+  ]
+}
