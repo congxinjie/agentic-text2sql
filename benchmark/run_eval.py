@@ -30,16 +30,44 @@ sys.path.insert(0, str(TEXT2SQL_DIR))
 import text2sql  # noqa: E402
 from text2sql import QueryAgent, load_api_key, get_table_meta  # noqa: E402
 
-# 口径启发式: 这些表是单快照/纯维度表, 当其全为必查表时豁免 data_dt 字面量检查
-TIME_EXEMPT_TABLES = {"ads_cust_info_d", "dim_public", "dim_branch", "dim_product"}
+# R7: 单快照豁免仅限 ads_cust_info_d(唯一 data_dt 只有 20260531 的表), 不全局豁免时间检查
+SINGLE_SNAPSHOT_TABLES = {"ads_cust_info_d"}
+# R6: 列名对齐比对——金标列名别名词表(仅收敛常见同义别名, 不放宽语义)
+HEADER_SYNONYMS = {
+    "客户数": {"客户数", "客户数量", "客户人数", "人数", "客户数目"},
+    "客户号": {"客户号", "客户ID", "客户编号", "客户id", "pty_id"},
+    "营业部": {"营业部", "营业部名称"},
+    "营业部数": {"营业部数", "营业部数量", "网点数", "网点数量"},
+    "学历": {"学历", "学历等级", "教育程度"},
+    "职业": {"职业", "职业类型", "职业名称"},
+    "性别": {"性别", "性别类型"},
+    "客户等级": {"客户等级", "等级", "客户级别"},
+    "交易额": {"交易额", "交易金额", "交易总额", "成交额", "交易总额合计"},
+    "总资产": {"总资产", "总资产合计", "资产合计", "客户总资产"},
+    "持仓市值": {"持仓市值", "市值", "持仓总市值"},
+    "买入金额": {"买入金额", "买入金额合计", "买入总额"},
+    "卖出金额": {"卖出金额", "卖出金额合计", "卖出总额"},
+    "交易笔数": {"交易笔数", "交易笔数合计", "成交笔数"},
+    "现金资产": {"现金资产", "现金资产合计"},
+    "平均年龄": {"平均年龄", "客户平均年龄", "平均岁数"},
+    "最大年龄": {"最大年龄", "年龄最大值"},
+    "交易天数": {"交易天数", "交易日数"},
+    "省份": {"省份", "省"},
+    "城市": {"城市", "市"},
+    "分公司": {"分公司", "上级分公司"},
+    "年龄段": {"年龄段", "年龄区间", "年龄分组"},
+    "账户": {"账户", "sys_source", "账户类型"},
+}
 # 分级模型策略(M3.5): 全量统一 deepseek-chat —— 空响应实验证明 flash 有随机空返回, 双跑取平均需稳定模型
 MODEL_BY_DIFF = {"simple": "deepseek-chat", "medium": "deepseek-chat", "complex": "deepseek-chat"}
 RULES_CHANGES = [
-    "R1 口径启发式: expect_tables 全属于单快照/纯维度表(ads_cust_info_d/dim_public/dim_branch/dim_product)时, 豁免 data_dt 字面量检查。",
+    "R1 口径启发式: expect_tables 全属于单快照/纯维度表时豁免 data_dt 字面量检查(已被 R7 收窄)。",
     "R2 结果比对: 数值以 gold 小数位数为准先四舍五入再比(1e-6 容差兜底); 分组标签规范化(去'岁'/空白)。",
-    "R3 分级模型策略: 复杂题用 deepseek-chat, 简单/中等用 deepseek-v4-flash(依据 M3 空响应实验; 可用环境变量 LLM_MODEL 整体覆盖)。",
+    "R3 分级模型策略(M3): 复杂题用 deepseek-chat, 简单/中等用 deepseek-v4-flash(已被 R5 取代)。",
     "R4 幻觉检查修正: CTE 识别由 'WITH 后第一个名' 改为 '任意 AS(' 模式, 避免多 CTE(WITH s AS..., e AS...)的 e/f 被误判为表幻觉。",
-    "R5 全量统一 deepseek-chat: M3.5 起简单/中等/复杂全部用 chat(flash 随机空返回噪声大, 双跑取平均需要稳定模型); 中等对比实验 chat exec 14/14 vs flash 12/14。",
+    "R5 全量统一 deepseek-chat: M3.5 起简单/中等/复杂全部用 chat(flash 随机空返回噪声大); 中等对比实验 chat exec 14/14 vs flash 12/14。",
+    "R6 列名对齐比对: 金标列必须全部命中(仅收敛 客户数/客户号/营业部 常见别名); 额外列仅限展示类(姓名/名称列); 对齐列数值性必须一致。",
+    "R7 单快照豁免限定 ads_cust_info_d: 仅当其出现在 expect_tables 时豁免其专属 token 20260531, 不再全局豁免时间检查。",
 ]
 
 # 企业口径语义(隔离在评测脚本内, 不进入 text2sql.py)
@@ -70,6 +98,18 @@ def norm_label(v):
     return str(v).replace("岁", "").replace(" ", "").strip()
 
 
+def canon_header(h):
+    h = str(h).strip().strip('"`').strip()
+    for canon, aliases in HEADER_SYNONYMS.items():
+        if h in aliases:
+            return canon
+    return h
+
+
+def is_display_col(h):
+    return any(k in str(h) for k in ("姓名", "名称", "名字"))
+
+
 def cells_equal(gold_v, agent_v, tol):
     g, a = norm(gold_v), norm(agent_v)
     if isinstance(g, float) and isinstance(a, float):
@@ -86,17 +126,38 @@ def cells_equal(gold_v, agent_v, tol):
     return g == a
 
 
-def rows_equal(gold_rows, got_rows, tol):
+def rows_equal(gold_headers, gold_rows, got_headers, got_rows, tol):
+    """R6 列名对齐比对: 金标列必须全部命中; 额外列仅限展示类(姓名/名称); 数值列集合一致。
+    单值题(1×1)按值比对, 列名不参与(无歧义)。"""
     if len(got_rows) != len(gold_rows):
         return False
-    key = lambda r: json.dumps(r, ensure_ascii=False, default=str)
-    g1 = sorted(gold_rows, key=key)
-    g2 = sorted(got_rows, key=key)
-    for r1, r2 in zip(g1, g2):
-        if len(r1) != len(r2):
+    # 单值题: 值比对(严格), 不因列名别名误伤
+    if len(gold_headers) == 1 and len(gold_rows) == 1 and len(got_headers) == 1 and len(got_rows) == 1:
+        return cells_equal(gold_rows[0][0], got_rows[0][0], tol)
+    gc = [canon_header(h) for h in gold_headers]
+    ac = [canon_header(h) for h in got_headers]
+    align = {}
+    for gi, g in enumerate(gc):
+        hits = [i for i, a in enumerate(ac) if a == g]
+        if len(hits) != 1:
+            return False  # 金标列缺失或重复命中
+        align[gi] = hits[0]
+    used = set(align.values())
+    for i, h in enumerate(got_headers):
+        if i not in used and not is_display_col(h):
+            return False  # 非展示类额外列, 不放行
+    # 数值列集合必须一致(对齐列数值性一致)
+    def col_is_numeric(vals):
+        return any(isinstance(v, (int, float)) and not isinstance(v, bool) for v in vals)
+    for gi, ai in align.items():
+        if col_is_numeric([r[gi] for r in gold_rows]) != col_is_numeric([r[ai] for r in got_rows]):
             return False
-        for c1, c2 in zip(r1, r2):
-            if not cells_equal(c1, c2, tol):
+    key = lambda row, idxs: json.dumps([row[i] for i in idxs], ensure_ascii=False, default=str)
+    g1 = sorted(gold_rows, key=lambda r: key(r, range(len(gold_headers))))
+    g2 = sorted(got_rows, key=lambda r: key(r, [align[i] for i in range(len(gold_headers))]))
+    for r1, r2 in zip(g1, g2):
+        for gi in range(len(gold_headers)):
+            if not cells_equal(r1[gi], r2[align[gi]], tol):
                 return False
     return True
 
@@ -127,15 +188,16 @@ def judge(rec, meta):
     rec["halluc_detail"] = []
 
     if rec["exec_ok"]:
-        rec["result_ok"] = rows_equal(gold["rows"], rec["rows"], gold.get("tolerance", 1e-6))
+        rec["result_ok"] = rows_equal(gold["headers"], gold["rows"],
+                                      rec.get("headers", []), rec["rows"],
+                                      gold.get("tolerance", 1e-6))
 
-        # 口径(规则启发式): 必需表 + 必需时间字面量出现(单快照/纯维度表豁免时间检查)
+        # 口径(规则启发式): 必需表 + 必需时间字面量出现; R7: 单快照豁免仅限 ads_cust_info_d 的 20260531
         ok_tables = all(re.search(rf"\b{t}\b", sql, re.I) for t in rec.get("expect_tables", []))
-        exempt = bool(rec.get("expect_tables")) and set(rec["expect_tables"]) <= TIME_EXEMPT_TABLES
-        if exempt:
-            ok_time = True
-        else:
-            ok_time = all((t in sql) or (dashes(t) in sql) for t in rec.get("expect_time", []))
+        exempt_20260531 = "ads_cust_info_d" in rec.get("expect_tables", [])
+        ok_time = all((t in sql) or (dashes(t) in sql)
+                      for t in rec.get("expect_time", [])
+                      if not (t == "20260531" and exempt_20260531))
         rec["caliber_ok"] = ok_tables and ok_time
         if not ok_tables:
             rec["halluc_detail"].append("口径: SQL 缺少期望表")
@@ -187,6 +249,7 @@ def main():
             rec["elapsed_ms"] = int((time.time() - t0) * 1000)
             rec["sql"] = ans.sql
             rec["rows"] = ans.rows
+            rec["headers"] = ans.headers
             rec["error"] = ans.error or ""
             rec["answerable"] = ans.answerable
             rec["needs_clarification"] = list(ans.needs_clarification)
