@@ -57,6 +57,9 @@ HEADER_SYNONYMS = {
     "分公司": {"分公司", "上级分公司"},
     "年龄段": {"年龄段", "年龄区间", "年龄分组"},
     "账户": {"账户", "sys_source", "账户类型"},
+    "净流入": {"净流入", "资金净流入", "资金净流入额", "净流入金额"},
+    "一级分类": {"一级分类", "一级分类名称", "产品一级分类"},
+    "二级分类": {"二级分类", "二级分类名称", "产品二级分类"},
 }
 # 分级模型策略(M3.5): 全量统一 deepseek-chat —— 空响应实验证明 flash 有随机空返回, 双跑取平均需稳定模型
 MODEL_BY_DIFF = {"simple": "deepseek-chat", "medium": "deepseek-chat", "complex": "deepseek-chat"}
@@ -68,6 +71,7 @@ RULES_CHANGES = [
     "R5 全量统一 deepseek-chat: M3.5 起简单/中等/复杂全部用 chat(flash 随机空返回噪声大); 中等对比实验 chat exec 14/14 vs flash 12/14。",
     "R6 列名对齐比对: 金标列必须全部命中(仅收敛 客户数/客户号/营业部 常见别名); 额外列仅限展示类(姓名/名称列); 对齐列数值性必须一致。",
     "R7 单快照豁免限定 ads_cust_info_d: 仅当其出现在 expect_tables 时豁免其专属 token 20260531, 不再全局豁免时间检查。",
+    "R8 展示标签/列名别名扩展: 一级分类/二级分类列名别名归一; 分桶边界等价标签归一(<30/[30,50)/≥60 等与中文写法等价)。",
 ]
 
 # 企业口径语义(隔离在评测脚本内, 不进入 text2sql.py)
@@ -78,7 +82,15 @@ ENTERPRISE_BIZ = """券商客户营销库(2026-Q1 事实 + 客户主档单快照
 【产品】一级分类用 up_prdt_type_id(PT040000 股票/PT030000 债券/PT050000 开放式基金/PT070000 理财/PT090000 恒生多金融/PT020000 权证/PT060000 衍生品/PT080000 回购/PT100000 私募/PT110000 贵金属/PT990000 现金类), 二级分类用 prdt_type_id/prdt_type_name(如 科创板/A股/沪港通)。注意 up_prdt_type_id 与 prdt_type_id 存在同名多义(如 PT090000 同时叫恒生多金融产品/OTC产品), 归类以 ID 为准。产品名(prdt_name)用于按名称过滤, 如 比亚迪/招商银行/中国平安。
 【账户与币种】sys_source: nm=普通账户, fc=信用账户; ccy: 0 人民币/1 美元/2 港币。资产表无 sys_source, nm/fc 为并列字段。
 【关键口径(队伍约定)】总资产=nm_tot_aset+fc_pur_aset; 现金资产=nm_bal+fc_bal; 交易额=buy_amt+sell_amt; 交易笔数=buy_cnt+sell_cnt; 交易天数=COUNT(DISTINCT data_dt); 日均=区间合计/区间天数(资产 90 天); 交易量未注明单位一律按金额; 盈亏=(期末总资产-期初总资产)+(资金流出-资金流入), 其中资金流入=cash_in+tran_in+assign_in, 资金流出=cash_out+tran_out+assign_out。
-【易错提醒】客户表只有 20260531 一个日期; 营业部与客户姓名已脱敏; 过滤日期用 data_dt 的 YYYYMMDD 字符串比较。"""
+【易错提醒】客户表只有 20260531 一个日期; 营业部与客户姓名已脱敏; 过滤日期用 data_dt 的 YYYYMMDD 字符串比较。
+【易混口径(M3.6 固化, 必须遵守)】"持有某产品超过 N"(未注明市值/金额)按份额口径 SUM(hold_cnt)>N, 不用 mkt_val;
+"增幅"默认是绝对增量(期末-期初), 只有题面说"增幅率/增速/涨幅"才用(期末-期初)/期初;
+产品/分类名称匹配一律 LIKE '%名%'(科创板 → prdt_type_name LIKE '%科创%'), 禁止精确等值;
+年龄分桶默认边界(题面未给时): <30 / [30,50) / [50,60) / ≥60;
+营业部统计粒度: 按 分公司(up_org_name)+营业部名称(org_name) 聚合, 同名营业部合并, 不按 org_id 拆分;
+客户等级名称以 dim_public.describe 为准(如 '紫金理财钻石卡客户' 含"客户"后缀), 不得截断;
+分类维度同时输出 code 与 describe(一级=up_prdt_type_id+up_prdt_type_name, 二级=prdt_type_id+prdt_type_name);
+问"哪个/哪些客户"必须输出客户号 pty_id。"""
 
 
 def norm(v):
@@ -95,7 +107,12 @@ def decimals_of(v):
 
 
 def norm_label(v):
-    return str(v).replace("岁", "").replace(" ", "").strip()
+    s = str(v).replace("岁", "").replace(" ", "").strip()
+    # 分桶边界等价标签归一(R8): '<30'/'≥60' 等数学写法与中文写法等价
+    s = (s.replace("<30", "30以下").replace("[30,50)", "30-50")
+           .replace("[50,60)", "50-60").replace("≥60", "60以上")
+           .replace("60及以上", "60以上").replace("60岁及以上", "60以上"))
+    return s
 
 
 def canon_header(h):
@@ -226,6 +243,14 @@ def pct(a, b):
     return round(100.0 * a / b, 1) if b else 0.0
 
 
+def percentile(sorted_times, p):
+    """统一分位数口径(floor nearest-rank): idx = min(int(p*n), n-1)。report 与 average_runs 共用。"""
+    if not sorted_times:
+        return 0
+    n = len(sorted_times)
+    return sorted_times[min(int(p * n), n - 1)]
+
+
 def main():
     bench = json.loads(BENCH.read_text(encoding="utf-8"))
     items = bench["items"]
@@ -286,8 +311,8 @@ def main():
         e2e = sum(1 for r in recs if r["exec_ok"] and r["result_ok"] and r["caliber_ok"])
         hal = sum(1 for r in recs if r["hallucination"])
         times = sorted(r["elapsed_ms"] for r in recs)
-        p50 = times[int(len(times) * 0.5)] if times else 0
-        p90 = times[min(int(len(times) * 0.9), len(times) - 1)] if times else 0
+        p50 = percentile(times, 0.5)
+        p90 = percentile(times, 0.9)
         return {
             "n": n, "exec_rate": pct(ex, n), "result_rate": pct(rr, n),
             "caliber_rate": pct(cr, n), "e2e_rate": pct(e2e, n),

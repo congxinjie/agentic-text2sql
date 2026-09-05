@@ -667,7 +667,10 @@ class QueryAgent:
                 f"计划检查未解决项(请尽量规避): {check_issues if check_issues else '无'}\n\n"
                 f"请只输出一条 SQLite 只读 SQL 语句本身, 不要解释、不要 markdown 代码块。\n"
                 f"规则: 只允许 SELECT/WITH/EXPLAIN 开头; 表名列名必须来自给定结构; 金额是 REAL, 日期是 TEXT(YYYY-MM-DD); "
-                f"聚合结果加 ORDER BY, 明细查询加 LIMIT 50。")
+                f"聚合结果加 ORDER BY, 明细查询加 LIMIT 50。"
+                f"理解/计划中出现的每个维度与实体标识列都必须进入最终 SELECT(编码维度同时输出 code 与 describe; "
+                f"问题问\"哪个/哪些客户\"必须输出客户标识列, 如 pty_id/客户号)。"
+                f"不要额外输出与问题无关的中间列(如问题只要交易额时不要拆出买入金额/卖出金额)。")
         sql = llm_chat(
             "你是 SQLite 只读查询助手。根据查询计划生成一条精确的 SQL。只输出 SQL 本身。尽量完整不要截断。",
             user, self.api_key, max_tokens=2800)

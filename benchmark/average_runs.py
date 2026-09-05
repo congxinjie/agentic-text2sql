@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import run_eval  # noqa: E402
 
 
 def pct(a, b):
@@ -31,8 +33,8 @@ def main():
             times = sorted(r["elapsed_ms"] for r in sel)
             rows.append({"n": n, "exec": pct(ex, n), "res": pct(rr, n), "cal": pct(cr, n),
                          "e2e": pct(e2, n), "hal": pct(hal, n),
-                         "p50": times[int(len(times) * 0.5)] if times else 0,
-                         "p90": times[min(int(len(times) * 0.9), len(times) - 1)] if times else 0})
+                         "p50": run_eval.percentile(times, 0.5),
+                         "p90": run_eval.percentile(times, 0.9)})
         out = {k: round(sum(x[k] for x in rows) / len(rows), 1) for k in ("exec", "res", "cal", "e2e", "hal")}
         out["p50_ms"] = int(sum(x["p50"] for x in rows) / len(rows))
         out["p90_ms"] = int(sum(x["p90"] for x in rows) / len(rows))
