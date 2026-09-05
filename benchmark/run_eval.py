@@ -32,13 +32,14 @@ from text2sql import QueryAgent, load_api_key, get_table_meta  # noqa: E402
 
 # 口径启发式: 这些表是单快照/纯维度表, 当其全为必查表时豁免 data_dt 字面量检查
 TIME_EXEMPT_TABLES = {"ads_cust_info_d", "dim_public", "dim_branch", "dim_product"}
-# 分级模型策略(M3): 复杂题用更稳的 deepseek-chat; 简单/中等保持 flash
-MODEL_BY_DIFF = {"simple": "deepseek-v4-flash", "medium": "deepseek-v4-flash", "complex": "deepseek-chat"}
+# 分级模型策略(M3.5): 全量统一 deepseek-chat —— 空响应实验证明 flash 有随机空返回, 双跑取平均需稳定模型
+MODEL_BY_DIFF = {"simple": "deepseek-chat", "medium": "deepseek-chat", "complex": "deepseek-chat"}
 RULES_CHANGES = [
     "R1 口径启发式: expect_tables 全属于单快照/纯维度表(ads_cust_info_d/dim_public/dim_branch/dim_product)时, 豁免 data_dt 字面量检查。",
     "R2 结果比对: 数值以 gold 小数位数为准先四舍五入再比(1e-6 容差兜底); 分组标签规范化(去'岁'/空白)。",
     "R3 分级模型策略: 复杂题用 deepseek-chat, 简单/中等用 deepseek-v4-flash(依据 M3 空响应实验; 可用环境变量 LLM_MODEL 整体覆盖)。",
     "R4 幻觉检查修正: CTE 识别由 'WITH 后第一个名' 改为 '任意 AS(' 模式, 避免多 CTE(WITH s AS..., e AS...)的 e/f 被误判为表幻觉。",
+    "R5 全量统一 deepseek-chat: M3.5 起简单/中等/复杂全部用 chat(flash 随机空返回噪声大, 双跑取平均需要稳定模型); 中等对比实验 chat exec 14/14 vs flash 12/14。",
 ]
 
 # 企业口径语义(隔离在评测脚本内, 不进入 text2sql.py)
@@ -171,7 +172,7 @@ def main():
     forced_model = os.environ.get("LLM_MODEL", "").strip()
     agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ)
 
-    print(f"评测开始: {len(items)} 问, 分级模型策略(simple/medium=flash, complex=chat)"
+    print(f"评测开始: {len(items)} 问, 全量 deepseek-chat(空响应实验结论, 双跑取平均)"
           + (f", LLM_MODEL={forced_model} 覆盖" if forced_model else ""), flush=True)
     t_all_start = time.time()
     records = []

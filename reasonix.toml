@@ -1,2 +1,24 @@
+default_model = "deepseek-pro"
+
+[[providers]]
+name           = "deepseek-flash"
+kind           = "openai"
+base_url       = "https://api.deepseek.com"
+models         = ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]
+default        = "deepseek-v4-flash"
+api_key_env    = "DEEPSEEK_API_KEY"
+web_search     = true
+context_window = 1000000
+
+[[providers]]
+name           = "deepseek-pro"
+kind           = "openai"
+base_url       = "https://api.deepseek.com"
+models         = ["deepseek-v4-pro"]
+default        = "deepseek-v4-pro"
+api_key_env    = "DEEPSEEK_API_KEY"
+web_search     = true
+context_window = 1000000
+
 [permissions]
 allow = ["Bash=cd text2sql_demo && PYTHONIOENCODING=utf-8 python -c \"\nimport sqlite3\nimport text2sql as t\nfrom text2sql import Understanding, Retrieval, QueryAgent\n\nagent = QueryAgent('../customer_marketing_db/marketing.db', 'fake-key', verbose=False)\n\n# 场景A: 必填缺失 + clarify=True -> 追问\nagent._understand = lambda q: Understanding(answerable=True, summary='测试', missing_required=['要统计的指标'])\nans = agent.run('测试', clarify=True)\nassert ans.needs_clarification == ['要统计的指标'] and ans.sql == ''\nprint('A 追问分支 OK')\n\n# 场景B: 全流程 + 失败修复一次 + 假设记录\nagent._understand = lambda q: Understanding(answerable=True, summary='测试', missing_optional=['时间范围'])\nagent._retrieve = lambda u: Retrieval(tables=['assets'], columns={'assets':['amount']})\nagent._plan = lambda u, r: {'summary':'x','tables':['assets'],'filters':[],'aggregations':[{'func':'SUM','field':'assets.amount','alias':'资产总额'}],'group_by':[],'order_by':[],'limit':None,'steps':['x']}\nagent._check_plan = lambda u, r, p: (True, [])\nagent._generate_sql = lambda u, r, p, ci: 'SELECT 1'\nagent._validate = lambda s: s\ncalls = []\ndef fe(sql):\n    calls.append(sql)\n    if len(calls) == 1: raise sqlite3.OperationalError('no such column: xyz')\n    return (['c'], [(1,)], False)\nagent._execute = fe\nagent._repair_sql = lambda sql, e, u, r, p: 'SELECT 2'\nagent._check_result = lambda h, rows, tr: []\nagent._explain = lambda u, sql, h, rows, tr, notes: '结论ok'\nans = agent.run('测试', clarify=True)\nassert ans.sql == 'SELECT 2' and calls == ['SELECT 1', 'SELECT 2']\nassert '合理默认' in ans.trace.render(), ans.trace.render()\nprint('B 失败修复+假设传播 OK, 执行顺序:', calls)\n\n# 场景C: 修复后仍失败 -> 报错且不崩溃\ndef fe2(sql): raise sqlite3.OperationalError('syntax error')\nagent._execute = fe2\nans = agent.run('测试', clarify=True)\nassert ans.error and '修复' in ans.error\nprint('C 修复失败终止 OK')\n\n# 场景D: LLM 阶段异常(RuntimeError)不再崩溃, 有 FAIL trace\nagent._understand = lambda q: (_ for _ in ()).throw(RuntimeError('LLM API 连接失败'))\nans = agent.run('测试', clarify=True)\nassert ans.error and '理解问题阶段失败' in ans.error\nassert any(e.status == 'FAIL' and e.stage == '理解问题' for e in agent.trace.entries)\nprint('D 阶段异常兜底 OK:', ans.error)\nprint('ALL REGRESSION TESTS PASSED')\n\"", "Bash=git"]
