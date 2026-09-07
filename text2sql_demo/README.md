@@ -1,44 +1,80 @@
-# text2sql_demo
+# text2sql_demo — 智能问数 Agent
 
-智能问数 Demo —— 最短闭环：自然语言问题 → LLM 生成只读 SQL → 执行 → 展示 SQL 与结果。
+自然语言 → 只读 SQL → 数据表 + 可解释结论。9 阶段状态机 QueryAgent(理解 → 检索 → 计划 → 检查 → 生成 SQL → 安全校验 → 执行 → 结果检查 → 解释),全程 Trace 留痕,支持主动追问、失败自修复、只读安全围栏。
 
-## 用法
+## 环境与部署
+
+- Python 3.10+(Windows 侧 `python`,≈3.12 验证过)
+- 引擎零第三方依赖(纯标准库 urllib 调 DeepSeek)
+- Web UI 依赖:`pip install -r requirements.txt`(仅 streamlit)
+
+## 双入口启动
 
 ```bash
-# 单条提问
-python3 text2sql.py "华东地区有多少客户？"
-python3 text2sql.py --db ../customer_marketing_db/marketing.db "2025年哪个月交易额最高？"
+# 入口 1:Streamlit Web UI(COMPETITION §10.1 方案 A)
+cd text2sql_demo
+pip install -r requirements.txt     # 首次
+streamlit run app.py
 
-# 交互模式
-python3 text2sql.py
+# 入口 2:CLI(单问/交互)
+python text2sql.py "华东地区有多少客户?"          # 默认演示营销库(虚构)
+python text2sql.py --db "..\\Agentic智能问数在客户营销场景的应用数据集\\enterprise.db" "各客户等级分别有多少客户?"
+python text2sql.py                                # 交互模式(支持追问)
 ```
+
+Web UI 默认连券商企业库 enterprise.db,业务口径从 `benchmark/run_eval.py` 同源注入(ENTERPRISE_BIZ + SQL_HINTS)。
 
 ## 配置
 
-密钥放在同目录 `.env.local`（已被 .gitignore 排除，不入库）：
+密钥放在同目录 `.env.local`(已被 .gitignore 排除,不入库):
 
 ```
 LLM_API_KEY=sk-xxxx
 ```
 
-可选：`LLM_BASE_URL`（默认 https://api.deepseek.com）、`LLM_MODEL`（默认 deepseek-v4-flash）。
+可选环境变量:`LLM_BASE_URL`(默认 https://api.deepseek.com)、`LLM_MODEL`(默认 deepseek-v4-flash;评测使用 deepseek-chat,见 benchmark/run_eval.py)。
 
-## 闭环流程
+## QueryAgent 官方接入口
 
-1. `build_schema()` 从 sqlite_master 提取全部表结构（DDL）+ 每表 2 行样例数据
-2. 结构与问题一起发给 LLM（temperature=0），要求只输出 SQL
-3. `validate_sql()` 校验：剥离注释、只取第一个分号前、仅放行 `SELECT/WITH/EXPLAIN`
-4. `run_query()` 以 `mode=ro` + `PRAGMA query_only=ON` 双保险只读执行
-5. 展示 SQL 与结果表格（最多 100 行）
+```python
+from text2sql import QueryAgent, load_api_key
+agent = QueryAgent(
+    db_path="<任意 sqlite 库>",
+    api_key=load_api_key(),
+    verbose=True,
+    biz_context="<业务口径说明文本>",   # 不传则用内置演示营销库语义
+    sql_hints={"持有": "口径示例 SQL 片段...", ...},  # 关键词触发 few-shot, 可选
+)
+ans = agent.run("问题", clarify=True)   # clarify=False 用于非交互(评测)
+```
 
-## 安全设计
+- `biz_context`:注入各 LLM 阶段的业务口径说明,按库切换语义,券商语义不硬编码进引擎。
+- `sql_hints`:生成 SQL 阶段按关键词触发注入口径示例(每类 1 例)。
+- 返回 `Answer`:answerable / needs_clarification / sql / headers / rows / truncated / explanation / error / trace。
 
-| 层级 | 措施 |
-|------|------|
-| 连接层 | `file:xxx?mode=ro` URI，文件系统级只读 |
-| 语句层 | `PRAGMA query_only=ON`，SQLite 拒绝任何写操作 |
-| 校验层 | 只允许单条 SELECT/WITH/EXPLAIN；剥离注释防注入；多语句直接拒绝 |
+## 评测复现命令(全部真实运行)
 
-## 依赖
+```bash
+cd benchmark
+python run_eval.py                    # 单轮全量 40 问评测(全量 deepseek-chat)
+python average_runs.py runs/run_A.json runs/run_B.json   # 双跑平均
+python rejudge.py --backfill runs/run_*.json             # 判定器改动后: 先重判留档并回填
+python run_edge_cases.py               # E1-E9 异常边界用例
+python ui_smoke.py                     # UI 全流程自测(5+1 问)
+```
 
-仅 Python 标准库（urllib 调 DeepSeek OpenAI 兼容接口），零第三方包。
+- 基准集:benchmark/benchmark.json(40 问,gold_sql 已全量真实跑通闸门)。
+- 最新双跑:e2e **92.5%**(exec 100% / 口径 100% / 幻觉 0% / P50 8.2s),见 docs/评测报告-基线.md。
+
+## 测试
+
+- 引擎回归:此前 4 场景断言(追问分支/失败修复/修复失败终止/阶段异常兜底)+ E1-E9 边界 9/9。
+- 评测:40 问双跑平均 + 判定器重判留档(rejudged_*.json)。
+- UI:app_core.answer 与 UI 同路径,ui_smoke.py 跑简单→复杂+库外拒绝+追问 6 问。
+
+## FAQ
+
+- **中文乱码**:Windows 终端跑 CLI 加 `PYTHONIOENCODING=utf-8`。
+- **库只读**:引擎 mode=ro + PRAGMA query_only,评测/演示不得写库。
+- **企业库重建**:由数据集目录 8 张 CSV 载入 SQLite(数值 REAL/日期与 ID TEXT),详见 docs/数据说明.md。
+- **为什么复杂题还有 4 题不达标**:C02/C07 为长上下文口径遵守度瓶颈 + 科创板存托凭证口径疑点,提升路径见 docs/技术报告.md §8。
