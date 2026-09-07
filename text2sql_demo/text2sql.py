@@ -84,7 +84,7 @@ def load_api_key() -> str:
 
 
 def llm_chat(system: str, user: str, api_key: str, max_tokens: int = 1500) -> str:
-    """调用 OpenAI 兼容接口, 返回文本。"""
+    """调用 OpenAI 兼容接口, 返回文本。M3.7: 超时/连接/429/5xx 指数退避重试(纯调用层, 不动状态机)。"""
     payload = {
         "model": MODEL,
         "messages": [
@@ -95,24 +95,34 @@ def llm_chat(system: str, user: str, api_key: str, max_tokens: int = 1500) -> st
         "max_tokens": max_tokens,
         "stream": False,
     }
-    req = urllib.request.Request(
-        f"{BASE_URL}/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json",
-                 "Authorization": f"Bearer {api_key}"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            data = json.load(resp)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", "replace")[:500]
-        raise RuntimeError(f"LLM API HTTP {e.code}: {body}") from e
-    except urllib.error.URLError as e:
-        raise RuntimeError(f"LLM API 连接失败: {e.reason}") from e
-    try:
-        return data["choices"][0]["message"]["content"].strip()
-    except (KeyError, IndexError) as e:
-        raise RuntimeError(f"LLM 响应格式异常: {str(data)[:300]}") from e
+    retryable_http = {429, 500, 502, 503, 504}
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        req = urllib.request.Request(
+            f"{BASE_URL}/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {api_key}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = json.load(resp)
+            try:
+                return data["choices"][0]["message"]["content"].strip()
+            except (KeyError, IndexError) as e:
+                raise RuntimeError(f"LLM 响应格式异常: {str(data)[:300]}") from e
+        except urllib.error.HTTPError as e:
+            if e.code in retryable_http and attempt < max_attempts - 1:
+                time.sleep(1.5 * (2 ** attempt))  # 1.5s / 3s 退避
+                continue
+            body = e.read().decode("utf-8", "replace")[:500]
+            raise RuntimeError(f"LLM API HTTP {e.code}: {body}") from e
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt < max_attempts - 1:
+                time.sleep(1.5 * (2 ** attempt))
+                continue
+            reason = getattr(e, "reason", e)
+            raise RuntimeError(f"LLM API 连接失败: {reason}") from e
 
 
 def extract_json(text: str):
@@ -479,12 +489,14 @@ EXPLAIN_SYS = """你是数据分析 Agent 的"结论解释器"。根据用户问
 # ================= Agent =================
 class QueryAgent:
     def __init__(self, db_path: str, api_key: str, verbose: bool = True,
-                 biz_context: str | None = None):
+                 biz_context: str | None = None, sql_hints: dict | None = None):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
         # 业务语义上下文: 默认使用老营销库语义 BUSINESS_DESC; 显式传入可覆盖, 用于接入其它 schema(不判核心逻辑)
         self.biz_context = biz_context if biz_context else BUSINESS_DESC
+        # M3.7: 生成 SQL 阶段的关键词触发 few-shot 提示(机制通用, 内容由调用方注入, 券商口径不硬编码进引擎)
+        self.sql_hints = sql_hints or {}
         self.schema = build_schema(db_path)
         self.meta = get_table_meta(db_path)
         self.trace = Trace()
@@ -671,6 +683,12 @@ class QueryAgent:
                 f"理解/计划中出现的每个维度与实体标识列都必须进入最终 SELECT(编码维度同时输出 code 与 describe; "
                 f"问题问\"哪个/哪些客户\"必须输出客户标识列, 如 pty_id/客户号)。"
                 f"不要额外输出与问题无关的中间列(如问题只要交易额时不要拆出买入金额/卖出金额)。")
+        # M3.7 few-shot: 按关键词触发注入口径示例(机制通用; 内容由 sql_hints 注入, 券商口径不硬编码进引擎)
+        trigger = " ".join([u.summary or "", json.dumps(plan, ensure_ascii=False),
+                            " ".join(u.metrics + u.dimensions + u.filters)])
+        hints = [ex for kw, ex in self.sql_hints.items() if kw in trigger]
+        if hints:
+            user += "\n\n口径示例(必须照此口径写 SQL, 示例优先于规则文字):\n" + "\n".join(hints)
         sql = llm_chat(
             "你是 SQLite 只读查询助手。根据查询计划生成一条精确的 SQL。只输出 SQL 本身。尽量完整不要截断。",
             user, self.api_key, max_tokens=2800)

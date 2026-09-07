@@ -60,11 +60,18 @@ HEADER_SYNONYMS = {
     "净流入": {"净流入", "资金净流入", "资金净流入额", "净流入金额"},
     "一级分类": {"一级分类", "一级分类名称", "产品一级分类"},
     "二级分类": {"二级分类", "二级分类名称", "产品二级分类"},
+    "资产增幅": {"资产增幅", "总资产增幅", "增幅"},
 }
 # 分级模型策略(M3.5): 全量统一 deepseek-chat —— 空响应实验证明 flash 有随机空返回, 双跑取平均需稳定模型
 MODEL_BY_DIFF = {"simple": "deepseek-chat", "medium": "deepseek-chat", "complex": "deepseek-chat"}
-RULES_CHANGES = [
-    "R1 口径启发式: expect_tables 全属于单快照/纯维度表时豁免 data_dt 字面量检查(已被 R7 收窄)。",
+# M3.7 few-shot 口径示例(关键词触发, 注入 _generate_sql; 券商口径留在评测 harness, 不硬编码进引擎)
+SQL_HINTS = {
+    "持有": "-- 例:\"持有比亚迪超过1000\" = 份额口径: WITH s AS (SELECT pty_id FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.prdt_name LIKE '%比亚迪%' GROUP BY h.pty_id HAVING SUM(h.hold_cnt)>1000) SELECT ... FROM s ...(hold_cnt=份额, 不用 mkt_val 市值)",
+    "增幅": "-- 例:\"总资产增幅\" = 绝对增量(期末-期初): WITH s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id) SELECT e.pty_id, e.a-COALESCE(s.a,0) AS 增幅 FROM e LEFT JOIN s ON e.pty_id=s.pty_id ORDER BY 增幅 DESC LIMIT 10",
+    "科创": "-- 例:\"科创板\"分类名匹配用 LIKE: prdt_type_name LIKE '%科创%'(不用 = '科创板'); 按 分公司(up_org_name)+营业部名(org_name) 聚合",
+}
+
+RULES_CHANGES = [    "R1 口径启发式: expect_tables 全属于单快照/纯维度表时豁免 data_dt 字面量检查(已被 R7 收窄)。",
     "R2 结果比对: 数值以 gold 小数位数为准先四舍五入再比(1e-6 容差兜底); 分组标签规范化(去'岁'/空白)。",
     "R3 分级模型策略(M3): 复杂题用 deepseek-chat, 简单/中等用 deepseek-v4-flash(已被 R5 取代)。",
     "R4 幻觉检查修正: CTE 识别由 'WITH 后第一个名' 改为 '任意 AS(' 模式, 避免多 CTE(WITH s AS..., e AS...)的 e/f 被误判为表幻觉。",
@@ -72,6 +79,8 @@ RULES_CHANGES = [
     "R6 列名对齐比对: 金标列必须全部命中(仅收敛 客户数/客户号/营业部 常见别名); 额外列仅限展示类(姓名/名称列); 对齐列数值性必须一致。",
     "R7 单快照豁免限定 ads_cust_info_d: 仅当其出现在 expect_tables 时豁免其专属 token 20260531, 不再全局豁免时间检查。",
     "R8 展示标签/列名别名扩展: 一级分类/二级分类列名别名归一; 分桶边界等价标签归一(<30/[30,50)/≥60 等与中文写法等价)。",
+    "R9 llm_chat 调用层重试: 超时/URLError/HTTP 429/5xx 指数退避(1.5s/3s)重试最多 3 次, 不动状态机。",
+    "R10 few-shot 口径示例: _generate_sql 按关键词触发注入 1 例(持有→份额 hold_cnt / 增幅→绝对增量 / 科创→LIKE+分公司聚合); 机制在引擎 sql_hints, 内容由评测 harness 注入(不硬编码券商口径)。",
 ]
 
 # 企业口径语义(隔离在评测脚本内, 不进入 text2sql.py)
@@ -111,6 +120,7 @@ def norm_label(v):
     # 分桶边界等价标签归一(R8): '<30'/'≥60' 等数学写法与中文写法等价
     s = (s.replace("<30", "30以下").replace("[30,50)", "30-50")
            .replace("[50,60)", "50-60").replace("≥60", "60以上")
+           .replace(">=60", "60以上").replace(">60", "60以上")
            .replace("60及以上", "60以上").replace("60岁及以上", "60以上"))
     return s
 
@@ -169,7 +179,15 @@ def rows_equal(gold_headers, gold_rows, got_headers, got_rows, tol):
     for gi, ai in align.items():
         if col_is_numeric([r[gi] for r in gold_rows]) != col_is_numeric([r[ai] for r in got_rows]):
             return False
-    key = lambda row, idxs: json.dumps([row[i] for i in idxs], ensure_ascii=False, default=str)
+    def norm_cell(v):
+        if isinstance(v, str):
+            return norm_label(v)
+        if isinstance(v, float):
+            return round(v, 6)
+        return v
+
+    key = lambda row, idxs: json.dumps([norm_cell(row[i]) for i in idxs],
+                                       ensure_ascii=False, default=str)
     g1 = sorted(gold_rows, key=lambda r: key(r, range(len(gold_headers))))
     g2 = sorted(got_rows, key=lambda r: key(r, [align[i] for i in range(len(gold_headers))]))
     for r1, r2 in zip(g1, g2):
@@ -257,7 +275,8 @@ def main():
     meta = get_table_meta(str(DB))
     api_key = load_api_key()
     forced_model = os.environ.get("LLM_MODEL", "").strip()
-    agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ)
+    agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
+                       sql_hints=SQL_HINTS)
 
     print(f"评测开始: {len(items)} 问, 全量 deepseek-chat(空响应实验结论, 双跑取平均)"
           + (f", LLM_MODEL={forced_model} 覆盖" if forced_model else ""), flush=True)
