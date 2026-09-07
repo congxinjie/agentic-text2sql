@@ -1,0 +1,65 @@
+{
+ "generated_at": "2026-09-07T15:35:51",
+ "results": [
+  {
+   "difficulty": "simple",
+   "question": "客户主档中共有多少客户?",
+   "expect": "ok",
+   "kind": "ok",
+   "text": "截至快照日期 2026-05-31，客户主档中共有 **500 个客户**（按 pty_id 计数）。该结果基于“每个 pty_id 唯一对应一条记录”的假设，未做去重处理。",
+   "elapsed_s": 12.1,
+   "rows_n": 1,
+   "sql": "SELECT COUNT(pty_id) AS \"客户总数\" FROM ads_cust_info_d"
+  },
+  {
+   "difficulty": "simple",
+   "question": "2026-03-31 全库客户总资产是多少?",
+   "expect": "ok",
+   "kind": "ok",
+   "text": "按 2026年3月31日快照统计，该日全库客户的总资产合计约为 **5.96亿元**（596,341,979.71元）。这里的“总资产”按口径默认为普通总资产与信用净资产之和，即 `nm_tot_aset + fc_pur_aset`。数据来自当日资产快照表，结果仅一行，无截断或空值问题。",
+   "elapsed_s": 26.1,
+   "rows_n": 1,
+   "sql": "SELECT SUM(nm_tot_aset + fc_pur_aset) AS \"总资产\" FROM dws_cust_aset_d WHERE data_dt = '20260331'"
+  },
+  {
+   "difficulty": "medium",
+   "question": "各客户等级分别有多少客户?",
+   "expect": "ok",
+   "kind": "ok",
+   "text": "按2026年5月31日客户主档快照统计，各客户等级人数共500人，其中银卡客户最多。紫金理财银卡客户151人，金卡客户118人，白金卡客户73人，紫金理财卡客户63人，钻石卡客户30人。另有65人属于客户等级编码1000006，但等级名称为空，可能该等级描述未在维表中维护。",
+   "elapsed_s": 32.3,
+   "rows_n": 6,
+   "sql": "SELECT a.cust_lvl_cd AS 客户等级编码,\n       d.describe AS 客户等级名称,\n       COUNT(DISTINCT a.pty_id) AS 客户数量\nFROM ads_cust_info_d a\nLEFT JOIN dim_public d\n       ON a.cust_lvl_cd = d.code\n      AND d.code_type_id = '100'\nWHERE a.data_dt = '20260531'\nGROUP BY a.cust_lvl_cd, d.describe\nORDER BY a.cust_lvl_cd"
+  },
+  {
+   "difficulty": "complex",
+   "question": "2026 年一季度日均总资产超过 30 万、且股票交易额超过 10 万的客户有多少人?",
+   "expect": "ok",
+   "kind": "error",
+   "text": "[失败] 查询规划阶段失败: LLM 返回无法解析为 JSON: ''",
+   "elapsed_s": 43.6,
+   "rows_n": 0,
+   "sql": ""
+  },
+  {
+   "difficulty": "reject",
+   "question": "今天天气怎么样?适合买基金吗?",
+   "expect": "reject",
+   "kind": "reject",
+   "text": "[拒绝回答] 问题涉及外部天气信息及主观投资建议，与数据库中的客户/产品/交易等结构化数据无关，无法回答。",
+   "elapsed_s": 1.4,
+   "rows_n": 0,
+   "sql": ""
+  },
+  {
+   "difficulty": "clarify",
+   "question": "帮我分析一下?",
+   "expect": "clarify",
+   "kind": "clarify",
+   "text": "需要补充信息才能继续: 分析目标和统计指标",
+   "elapsed_s": 4.6,
+   "rows_n": 0,
+   "sql": ""
+  }
+ ]
+}
