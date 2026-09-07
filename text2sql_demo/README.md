@@ -56,6 +56,7 @@ ans = agent.run("问题", clarify=True)   # clarify=False 用于非交互(评测
 
 ```bash
 cd benchmark
+python build_db.py                    # 重建 enterprise.db(纯标准库, 8 张 CSV → SQLite, 行数校验)
 python run_eval.py                    # 单轮全量 40 问评测(全量 deepseek-chat)
 python average_runs.py runs/run_A.json runs/run_B.json   # 双跑平均
 python rejudge.py --backfill runs/run_*.json             # 判定器改动后: 先重判留档并回填
