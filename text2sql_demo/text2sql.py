@@ -470,13 +470,27 @@ PLAN_SYS = """你是数据分析 Agent 的"查询计划器"。基于问题理解
   "group_by": [{"expr": "substr(transactions.trans_date,1,7)", "alias": "月份"}],
   "order_by": [{"expr": "交易总额", "dir": "DESC"}],
   "limit": null,
-  "steps": ["筛选2025年交易", "按月分组", "汇总交易总额"]
+  "steps": ["筛选2025年交易", "按月分组", "汇总交易总额"],
+  "output_columns": [
+    {"name": "月份", "desc": "分组维度列"},
+    {"name": "交易总额", "desc": "指标列"}
+  ],
+  "dimension_labels": [
+    {"dimension": "客户等级", "code_field": "a.cust_lvl_cd", "label_field": "p.describe"}
+  ]
 }
 规则:
 1. 表名/列名逐字来自给定结构; filters 的 field 必须是"表.列"或裸列名。
 2. 每个指标都要有对应聚合, 每个维度都要进 group_by。
 3. 用户给了时间范围必须体现在 filters 或 steps 中。
-4. 不要写具体 SQL, 只写计划。"""
+4. 不要写具体 SQL, 只写计划。
+5. output_columns 必填: 列出最终结果应展示的每一个列(维度列/指标列/客户标识列), name 用中文业务名。标量题(只问一个合计值)只能有一个 output_columns 项。
+6. 若问题先筛选出一批满足客户级条件的客户(如"交易额超过25万的客户""持有某产品超过1000的客户"), 再求这批客户的指标合计: 按维度分组统计时 output_columns = 维度列 + "客户数" + 指标列; 不分组直接合计时 output_columns = "客户数" + 指标列。若只是按维度直接分组统计、没有客户级阈值筛选, 不要额外加"客户数"。
+7. 有维度分组时, dimension_labels 必须为每个维度声明展示字段: 编码类维度(客户等级/性别/学历/职业等)只展示解码后的业务名称字段(如 dim_public.describe), 不要输出 code/ID 列; 只有产品分类维度(一级/二级分类)才同时输出 ID 与名称两列。
+8. 问题问"哪个/哪些客户"时, output_columns 必须包含客户标识列(pty_id, 展示名为"客户号")。
+9. 若指标需要先按客户(pty_id)聚合并用 HAVING 过滤(如"超过N"), 再按维度分组汇总, steps 必须写明这两步顺序, 禁止先按维度分组再 HAVING(会把不满足 N 的客户并入)。
+10. output_columns 只列最终展示列; 计算过程的中间列(如期初/期末资产、买入/卖出拆分)不要声明, 除非用户明确要求分开看。"前N/最高/最大/哪些"类排名/明细题不要额外加"客户数"。
+11. 输出列命名要简洁: 产品分类维度的 ID 列用"一级分类ID/二级分类ID", 名称列用"一级分类/二级分类"; 其他编码维度(客户等级/性别/学历/职业等)只输出名称列; 指标列用"总资产/交易额/持仓市值"等业务名, 不要加"产品/客户"前缀或"编码/名称/合计"后缀(盈亏合计、交易额合计这类口径名除外)。"""
 
 EXPLAIN_SYS = """你是数据分析 Agent 的"结论解释器"。根据用户问题、执行成功的 SQL 和查询结果, 用简洁自然的中文解释结论:
 - 结论先行, 再给关键数字(引用结果中的数值)。
@@ -489,7 +503,8 @@ EXPLAIN_SYS = """你是数据分析 Agent 的"结论解释器"。根据用户问
 # ================= Agent =================
 class QueryAgent:
     def __init__(self, db_path: str, api_key: str, verbose: bool = True,
-                 biz_context: str | None = None, sql_hints: dict | None = None):
+                 biz_context: str | None = None, sql_hints: dict | None = None,
+                 caliber_assertions: list | None = None):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
@@ -497,6 +512,9 @@ class QueryAgent:
         self.biz_context = biz_context if biz_context else BUSINESS_DESC
         # M3.7: 生成 SQL 阶段的关键词触发 few-shot 提示(机制通用, 内容由调用方注入, 券商口径不硬编码进引擎)
         self.sql_hints = sql_hints or {}
+        # M6: 口径断言(可配置, 内容由调用方注入)。每条: {"id", "when", "must_contain", "must_not_contain", "desc"}
+        # when 全部命中问题/计划文本时才检查; 违反则计划检查不通过并触发一次重规划。
+        self.caliber_assertions = caliber_assertions or []
         self.schema = build_schema(db_path)
         self.meta = get_table_meta(db_path)
         self.trace = Trace()
@@ -652,9 +670,86 @@ class QueryAgent:
         if u.metrics and not plan.get("aggregations"):
             issues.append("有指标但计划缺少聚合")
 
+        # 4.7 M6: 计划必须结构化声明输出列
+        out_cols = plan.get("output_columns") or []
+        declared = []
+        for c in out_cols:
+            if isinstance(c, dict):
+                name = str(c.get("name", "")).strip()
+            else:
+                name = str(c).strip()
+            if name:
+                declared.append(name)
+            else:
+                issues.append("output_columns 中存在缺少 name 的项")
+
+        # 4.7b M6: 客群筛选后再求指标合计/按维度统计, 结果必须带"客户数"(通用规则, 不针对题号)
+        count_only_metrics = bool(u.metrics) and all(
+            any(k in m for k in ("客户数", "人数", "多少人", "客户数量")) for m in u.metrics)
+        if self._is_ranking_question(u):
+            if any(c == "客户数" for c in declared) and not count_only_metrics:
+                issues.append("排名/明细题 output_columns 不应额外包含 客户数")
+        elif u.filters and u.metrics and not count_only_metrics:
+            has_customer_cond = any(
+                re.search(r"持有|超过|以上|交易过|交易额|年龄|性别|等级", f)
+                for f in u.filters)
+            if has_customer_cond:
+                if not u.dimensions and not plan.get("group_by"):
+                    if not any(c == "客户数" for c in declared):
+                        issues.append("客群筛选后求指标合计: output_columns 应同时包含 客户数 与指标列")
+                elif u.dimensions and plan.get("group_by"):
+                    if not any(c == "客户数" for c in declared):
+                        issues.append("客群筛选后按维度统计: output_columns 应包含维度列 + 客户数 + 指标列")
+
+        if (u.metrics or u.dimensions) and not declared:
+            issues.append("计划缺少 output_columns(应写明结果输出列)")
+        # 标量题(无分组/无维度)只应一个输出列; 但"客群筛选后再求合计"允许 客户数+指标列 两列形态(客户数是辅助计数)
+        trig0 = " ".join([u.summary or "", u.time_range or "",
+                          " ".join(u.metrics), " ".join(u.dimensions), " ".join(u.filters)])
+        has_customer_filter = any(k in trig0 for k in ("客户",))
+        count_is_aux = any(c == "客户数" for c in declared) and not any(
+            k in m for m in u.metrics for k in ("客户数", "人数", "多少人"))
+        if (not plan.get("group_by") and not u.dimensions and len(declared) > 1
+                and not (has_customer_filter and count_is_aux)):
+            issues.append("标量题 output_columns 只应有一个输出列")
+
+        # 4.8 M6: 维度展示字段声明(dimension_labels)必须存在且字段真实
+        dim_labels = plan.get("dimension_labels") or []
+        if u.dimensions and not dim_labels:
+            issues.append("有维度分组但计划缺少 dimension_labels(维度展示字段声明)")
+        for dl in dim_labels:
+            if not isinstance(dl, dict):
+                continue
+            dim = str(dl.get("dimension", ""))
+            for key in ("code_field", "label_field"):
+                f = str(dl.get(key, "")).strip()
+                if not f:
+                    issues.append(f"维度「{dim}」缺少 {key}")
+                elif "." in f:
+                    tbl, col = f.split(".", 1)
+                    if tbl in self.meta and col not in self.meta[tbl]:
+                        issues.append(f"维度标签字段不存在: {f}")
+
+        # 4.9 M6: 口径断言(可配置, 由调用方注入)。when 全部命中才检查, 违反即拒绝本次计划。
+        trig = " ".join([u.summary or "", u.time_range or "",
+                         " ".join(u.metrics), " ".join(u.dimensions), " ".join(u.filters)])
+        for rule in self.caliber_assertions:
+            when = rule.get("when") or []
+            if when and not all(str(k) in trig for k in when):
+                continue
+            miss = [k for k in (rule.get("must_contain") or []) if k not in text]
+            forbid = [k for k in (rule.get("must_not_contain") or []) if k in text]
+            if miss or forbid:
+                detail = f"口径断言「{rule.get('id', '')}」: {rule.get('desc', '')}"
+                if miss:
+                    detail += f"; 计划应包含 {miss}"
+                if forbid:
+                    detail += f"; 计划不应包含 {forbid}"
+                issues.append(detail)
+
         ok = not issues
         self._stage("检查查询计划", "OK" if ok else "WARN",
-                    "检查通过: 表/字段/指标/维度/时间范围均覆盖" if ok
+                    "检查通过: 表/字段/指标/维度/时间范围/输出列/口径断言均覆盖" if ok
                     else "发现问题: " + "; ".join(issues))
         return ok, issues
 
@@ -669,6 +764,60 @@ class QueryAgent:
         return new_plan
 
     # ---- 5 生成 SQL ----
+    @staticmethod
+    def _declared_cols(plan: dict) -> list[str]:
+        cols = []
+        for c in (plan.get("output_columns") or []):
+            if isinstance(c, dict):
+                name = str(c.get("name", "")).strip()
+            else:
+                name = str(c).strip()
+            if name:
+                cols.append(name)
+        return cols
+
+    @staticmethod
+    def _is_ranking_question(u: Understanding) -> bool:
+        """排名/明细类问题(最高/最大/前N/哪些), 不应自动附加辅助客户数列。"""
+        text = " ".join([u.summary or "", " ".join(u.metrics),
+                         " ".join(u.dimensions), " ".join(u.filters)])
+        return any(k in text for k in ("最高", "最大", "前10", "前 10", "哪些", "排名", "TOP", "top"))
+
+    def _enforce_output_contract(self, u: Understanding, plan: dict) -> dict:
+        """M6 输出列契约程序化兜底(通用规则, 不针对题号/指标名):
+        客群筛选后再求指标合计/按维度统计时, 计划若仍缺"客户数"则补齐声明;
+        排名/明细类问题则剥离误加的辅助客户数列, 使 _generate_sql 硬约束生效。"""
+        if not u.filters or not u.metrics:
+            return plan
+        count_only_metrics = all(
+            any(k in m for k in ("客户数", "人数", "多少人", "客户数量")) for m in u.metrics)
+        names = self._declared_cols(plan)
+        if self._is_ranking_question(u):
+            if count_only_metrics or "客户数" not in names:
+                return plan
+            new_plan = dict(plan)
+            new_plan["output_columns"] = [
+                c for c in (plan.get("output_columns") or [])
+                if not (isinstance(c, dict) and str(c.get("name", "")) == "客户数")
+            ]
+            self._log(f"        [输出契约] 排名/明细题移除误加的客户数列")
+            return new_plan
+        if count_only_metrics:
+            return plan
+        has_customer_cond = any(
+            re.search(r"持有|超过|以上|交易过|交易额|年龄|性别|等级", f)
+            for f in u.filters)
+        if not has_customer_cond:
+            return plan
+        if "客户数" in names:
+            return plan
+        new_plan = dict(plan)
+        cols = list(plan.get("output_columns") or [])
+        cols.append({"name": "客户数", "desc": "满足客群筛选条件的客户数(COUNT(*))"})
+        new_plan["output_columns"] = cols
+        self._log(f"        [输出契约] 计划缺少客户数列, 程序化补齐后再生成 SQL")
+        return new_plan
+
     def _generate_sql(self, u: Understanding, r: Retrieval, plan: dict,
                       check_issues: list[str]) -> str:
         self.trace.begin_stage()
@@ -680,9 +829,21 @@ class QueryAgent:
                 f"请只输出一条 SQLite 只读 SQL 语句本身, 不要解释、不要 markdown 代码块。\n"
                 f"规则: 只允许 SELECT/WITH/EXPLAIN 开头; 表名列名必须来自给定结构; 金额是 REAL, 日期是 TEXT(YYYY-MM-DD); "
                 f"聚合结果加 ORDER BY, 明细查询加 LIMIT 50。"
-                f"理解/计划中出现的每个维度与实体标识列都必须进入最终 SELECT(编码维度同时输出 code 与 describe; "
-                f"问题问\"哪个/哪些客户\"必须输出客户标识列, 如 pty_id/客户号)。"
-                f"不要额外输出与问题无关的中间列(如问题只要交易额时不要拆出买入金额/卖出金额)。")
+                f"SELECT 输出列必须严格等于计划 output_columns 声明的列, 禁止额外输出中间列(如期初总资产/期末总资产、买入金额/卖出金额拆分), 除非计划明确列出。"
+                f"多表聚合必须用 JOIN ON 关联键(如 pty_id), 禁止 CROSS JOIN 笛卡尔积; "
+                f"跨表合计必须先按客户分组聚合, 再在客户粒度用 LEFT JOIN 关联(主表为期末口径表), 缺失记录 COALESCE(...,0), 最后 SUM 汇总, 保证不漏客户。")
+        declared = self._declared_cols(plan)
+        if declared:
+            user += ("\n\n硬约束(输出列契约, 必须逐字满足): 结果表头必须包含以下列, 用相同中文 AS 别名: "
+                     + "、".join(declared))
+        dim_lines = []
+        for dl in (plan.get("dimension_labels") or []):
+            if isinstance(dl, dict) and dl.get("dimension") and dl.get("label_field"):
+                dim_lines.append(f"- {dl.get('dimension')}: 展示 {dl.get('label_field')}, "
+                                 f"不要用 {dl.get('code_field', 'code')} 作为展示列")
+        if dim_lines:
+            user += "\n维度展示字段约束:\n" + "\n".join(dim_lines)
+            user += "\n编码维度必须输出解码后的业务名称(describe), 禁止只输出 code。"
         # M3.7 few-shot: 按关键词触发注入口径示例(机制通用; 内容由 sql_hints 注入, 券商口径不硬编码进引擎)
         trigger = " ".join([u.summary or "", json.dumps(plan, ensure_ascii=False),
                             " ".join(u.metrics + u.dimensions + u.filters)])
@@ -692,6 +853,15 @@ class QueryAgent:
         sql = llm_chat(
             "你是 SQLite 只读查询助手。根据查询计划生成一条精确的 SQL。只输出 SQL 本身。尽量完整不要截断。",
             user, self.api_key, max_tokens=2800)
+        # M6: 声明列缺失 -> 带错误反馈重写一次
+        missing = [c for c in declared if c not in sql]
+        if missing:
+            retry_user = (user + f"\n\n[系统] 刚生成的 SQL 输出列缺失: {missing}。"
+                          f"请重写完整 SQL, 必须让这些列出现在 SELECT 输出中(使用相同中文别名)。"
+                          f"只输出 SQL 本身。")
+            sql = llm_chat(
+                "你是 SQLite 只读查询助手。刚生成的 SQL 缺少计划声明的输出列, 请按反馈重写。只输出 SQL 本身。",
+                retry_user, self.api_key, max_tokens=2800)
         self._stage("生成SQL", "OK", sql[:200] + ("…" if len(sql) > 200 else ""))
         return sql
 
@@ -711,32 +881,56 @@ class QueryAgent:
                     f"只读执行成功: {len(rows)} 行" + ("(已截断)" if truncated else ""))
         return headers, rows, truncated
 
-    # ---- 7b SQL 失败自动修复一次 ----
-    def _repair_sql(self, sql: str, error: Exception, u: Understanding, plan: dict) -> str:
+    # ---- 7b SQL 修复一次(执行失败与结果列缺失共用同一修复机制) ----
+    def _repair_sql(self, sql: str, problem: object, u: Understanding, plan: dict,
+                    stage_title: str = "执行") -> str:
         self.trace.begin_stage()
-        self._log(f"        [自动修复] SQL 执行失败: {error}")
+        reason = str(problem)
+        self._log(f"        [自动修复] {reason}")
         user = (f"数据库结构:\n{self.schema}\n\n"
                 f"问题: {u.summary}\n查询计划:\n{json.dumps(plan, ensure_ascii=False)}\n\n"
-                f"SQL 执行失败:\n{sql}\n\n错误信息:\n{error}\n\n"
-                f"请根据错误信息修正 SQL, 只输出修正后的完整 SQL, 不要解释。")
+                f"SQL 存在问题:\n{sql}\n\n问题描述:\n{reason}\n\n"
+                f"请根据问题描述修正 SQL, 只输出修正后的完整 SQL, 不要解释。")
         new_sql = llm_chat("你是 SQLite 专家, 负责修复一条出错的只读 SQL。只输出修正后的 SQL 本身, 尽量完整: 不要截断、不要写注释或解释。",
                            user, self.api_key, max_tokens=2800)
         cleaned = validate_sql(new_sql)
-        self._stage("执行", "WARN", f"SQL 修复后重试: {cleaned[:160]}…")
+        self._stage(stage_title, "WARN", f"SQL 修复后重试: {cleaned[:160]}…")
         return cleaned
 
     # ---- 8 检查结果 ----
-    def _check_result(self, headers: list, rows: list, truncated: bool) -> list[str]:
+    @staticmethod
+    def _col_in_headers(name: str, headers: list) -> bool:
+        name = str(name).replace(" ", "").strip()
+        if not name:
+            return True
+        for h in headers:
+            h = str(h).replace(" ", "").strip()
+            if name == h:
+                return True
+            # 宽松匹配: 避免"营业部名称 vs 营业部"这类同义列名触发无谓修复
+            if (len(name) >= 3 and name in h) or (len(h) >= 3 and h in name):
+                return True
+        return False
+
+    def _check_result(self, headers: list, rows: list, truncated: bool,
+                      plan: dict | None = None) -> tuple[list[str], list[str]]:
         self.trace.begin_stage()
         notes = []
+        missing = []
         if not rows:
             notes.append("查询结果为空: 可能筛选条件过严或该时间段无数据, 建议放宽条件")
         elif len(rows) == 1:
             notes.append("结果仅 1 行, 可直接给出结论")
         if truncated:
             notes.append(f"结果超过 {MAX_ROWS} 行, 仅展示前 {MAX_ROWS} 行, 解释时需注明")
+        # M6: 结果阶段程序化校验——计划声明的输出列必须都在结果表头
+        if plan:
+            declared = self._declared_cols(plan)
+            missing = [c for c in declared if not self._col_in_headers(c, headers)]
+            if missing:
+                notes.append(f"结果表头缺少计划声明的列: {missing}")
         self._stage("检查结果", "OK" if not notes else "WARN", "; ".join(notes) or "结果正常")
-        return notes
+        return notes, missing
 
     # ---- 9 解释结果 ----
     def _explain(self, u: Understanding, sql: str, headers: list,
@@ -814,7 +1008,8 @@ class QueryAgent:
             if not ok:
                 plan = self._safe_stage("生成查询计划", self._replan, u, r, plan, issues)
                 ok, issues = self._check_plan(u, r, plan)
-            # 5 生成 SQL
+            # 5 生成 SQL(M6: 输出列契约程序化兜底后再生成)
+            plan = self._enforce_output_contract(u, plan)
             raw_sql = self._safe_stage("生成SQL", self._generate_sql, u, r, plan, issues)
         except STAGE_ERRORS as e:
             ans.error = f"查询规划阶段失败: {e}"
@@ -846,8 +1041,21 @@ class QueryAgent:
                 return ans
         ans.headers, ans.rows, ans.truncated = headers, rows, truncated
 
-        # 8 检查结果
-        notes = self._check_result(headers, rows, truncated)
+        # 8 检查结果(M6: 计划声明的输出列缺失 -> 复用修复机制重试一次)
+        notes, missing = self._check_result(headers, rows, truncated, plan)
+        if missing:
+            try:
+                sql = self._repair_sql(
+                    sql,
+                    f"SQL 执行成功但结果表头缺少计划声明的输出列: {missing}; 请在 SELECT 中补齐这些列并保持中文别名一致",
+                    u, plan, stage_title="检查结果")
+                ans.sql = sql
+                headers, rows, truncated = self._execute(sql)
+                ans.headers, ans.rows, ans.truncated = headers, rows, truncated
+                notes, _ = self._check_result(headers, rows, truncated, plan)
+            except (sqlite3.Error, ValueError) as e:
+                self.trace.begin_stage()
+                self._stage("检查结果", "WARN", f"输出列修复失败: {e}")
 
         # 9 解释结果
         try:

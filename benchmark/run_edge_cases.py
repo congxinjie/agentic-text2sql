@@ -71,8 +71,8 @@ def run_unit(case, api_key):
         agent._check_plan = lambda u, r, p: (True, [])
         agent._generate_sql = lambda u, r, p, ci: "SELECT 1"
         agent._validate = lambda s: s
-        agent._repair_sql = lambda sql, e, u, plan: "SELECT 2"
-        agent._check_result = lambda h, rows, tr: []
+        agent._repair_sql = lambda sql, e, u, plan, stage_title="执行": "SELECT 2"
+        agent._check_result = lambda h, rows, tr, plan=None: ([], [])
         agent._explain = lambda u, sql, h, rows, tr, notes: "ok"
 
         def fake_execute(sql):
@@ -98,8 +98,8 @@ def run_unit(case, api_key):
         agent._check_plan = lambda u, r, p: (True, [])
         agent._generate_sql = lambda u, r, p, ci: "SELECT 1"
         agent._validate = lambda s: s
-        agent._repair_sql = lambda sql, e, u, plan: "SELECT 2"
-        agent._check_result = lambda h, rows, tr: []
+        agent._repair_sql = lambda sql, e, u, plan, stage_title="执行": "SELECT 2"
+        agent._check_result = lambda h, rows, tr, plan=None: ([], [])
         agent._explain = lambda u, sql, h, rows, tr, notes: "ok"
 
         def always_fail(sql):

@@ -69,7 +69,48 @@ SQL_HINTS = {
     "持有": "-- 例:\"持有比亚迪超过1000\" = 份额口径: WITH s AS (SELECT pty_id FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.prdt_name LIKE '%比亚迪%' GROUP BY h.pty_id HAVING SUM(h.hold_cnt)>1000) SELECT ... FROM s ...(hold_cnt=份额, 不用 mkt_val 市值)",
     "增幅": "-- 例:\"总资产增幅\" = 绝对增量(期末-期初): WITH s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id) SELECT e.pty_id, e.a-COALESCE(s.a,0) AS 增幅 FROM e LEFT JOIN s ON e.pty_id=s.pty_id ORDER BY 增幅 DESC LIMIT 10",
     "科创": "-- 例:\"科创板\"分类名匹配用 LIKE: prdt_type_name LIKE '%科创%'(不用 = '科创板'); 按 分公司(up_org_name)+营业部名(org_name) 聚合",
+    "盈亏": "-- 例:\"盈亏合计\" = 期末资产-期初资产+资金流出-资金流入: WITH s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id), f AS (SELECT pty_id, SUM(cash_out+tran_out+assign_out) o, SUM(cash_in+tran_in+assign_in) i FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id) SELECT ROUND(SUM(COALESCE(e.a,0)-COALESCE(s.a,0)+COALESCE(f.o,0)-COALESCE(f.i,0)),4) AS 盈亏合计 FROM e LEFT JOIN s ON e.pty_id=s.pty_id LEFT JOIN f ON e.pty_id=f.pty_id",
 }
+# M6 口径断言(可配置, 由评测 harness 注入引擎 caliber_assertions; 机制通用, 不针对题号)
+CALIBER_ASSERTIONS = [
+    {
+        "id": "持有超过N用份额",
+        "when": ["持有", "超过"],
+        "must_contain": ["hold_cnt"],
+        "must_not_contain": ["mkt_val"],
+        "desc": "持有某产品超过 N(未注明市值/金额)按份额 SUM(hold_cnt)>N, 不用市值 mkt_val",
+    },
+    {
+        "id": "交易额用买卖金额",
+        "when": ["交易额"],
+        "must_contain": ["buy_amt", "sell_amt"],
+        "must_not_contain": [],
+        "desc": "交易额=buy_amt+sell_amt",
+    },
+    {
+        "id": "交易额超N先按客户聚合",
+        "when": ["交易额", "超过", "按"],
+        "must_contain": ["pty_id", "HAVING"],
+        "must_not_contain": [],
+        "desc": "交易额超过 N 的客户按维度统计: 必须先按 pty_id 聚合并 HAVING 过滤, 再按维度分组",
+    },
+    {
+        "id": "分类名用LIKE",
+        "when": ["科创"],
+        "must_contain": ["LIKE"],
+        "must_not_contain": [],
+        "desc": "科创板等产品/分类名称匹配用 LIKE '%名%', 禁止精确等值",
+    },
+    {
+        "id": "盈亏口径",
+        "when": ["盈亏"],
+        "must_contain": ["nm_tot_aset", "fc_pur_aset",
+                        "cash_out", "tran_out", "assign_out",
+                        "cash_in", "tran_in", "assign_in"],
+        "must_not_contain": [],
+        "desc": "盈亏=期末总资产-期初总资产+资金流出-资金流入; 总资产=nm_tot_aset+fc_pur_aset; 资金流=cash/tran/assign",
+    },
+]
 
 RULES_CHANGES = [    "R1 口径启发式: expect_tables 全属于单快照/纯维度表时豁免 data_dt 字面量检查(已被 R7 收窄)。",
     "R2 结果比对: 数值以 gold 小数位数为准先四舍五入再比(1e-6 容差兜底); 分组标签规范化(去'岁'/空白)。",
@@ -91,15 +132,15 @@ ENTERPRISE_BIZ = """券商客户营销库(2026-Q1 事实 + 客户主档单快照
 【产品】一级分类用 up_prdt_type_id(PT040000 股票/PT030000 债券/PT050000 开放式基金/PT070000 理财/PT090000 恒生多金融/PT020000 权证/PT060000 衍生品/PT080000 回购/PT100000 私募/PT110000 贵金属/PT990000 现金类), 二级分类用 prdt_type_id/prdt_type_name(如 科创板/A股/沪港通)。注意 up_prdt_type_id 与 prdt_type_id 存在同名多义(如 PT090000 同时叫恒生多金融产品/OTC产品), 归类以 ID 为准。产品名(prdt_name)用于按名称过滤, 如 比亚迪/招商银行/中国平安。
 【账户与币种】sys_source: nm=普通账户, fc=信用账户; ccy: 0 人民币/1 美元/2 港币。资产表无 sys_source, nm/fc 为并列字段。
 【关键口径(队伍约定)】总资产=nm_tot_aset+fc_pur_aset; 现金资产=nm_bal+fc_bal; 交易额=buy_amt+sell_amt; 交易笔数=buy_cnt+sell_cnt; 交易天数=COUNT(DISTINCT data_dt); 日均=区间合计/区间天数(资产 90 天); 交易量未注明单位一律按金额; 盈亏=(期末总资产-期初总资产)+(资金流出-资金流入), 其中资金流入=cash_in+tran_in+assign_in, 资金流出=cash_out+tran_out+assign_out。
-【易错提醒】客户表只有 20260531 一个日期; 营业部与客户姓名已脱敏; 过滤日期用 data_dt 的 YYYYMMDD 字符串比较。
+【易错提醒】客户表只有 20260531 一个日期; 营业部与客户姓名已脱敏; 过滤日期用 data_dt 的 YYYYMMDD 字符串比较; 营业部数=dim_branch 行数 COUNT(*)(一行一网点, 同名营业部是不同网点, 不要 COUNT(DISTINCT org_name))。
 【易混口径(M3.6 固化, 必须遵守)】"持有某产品超过 N"(未注明市值/金额)按份额口径 SUM(hold_cnt)>N, 不用 mkt_val;
 "增幅"默认是绝对增量(期末-期初), 只有题面说"增幅率/增速/涨幅"才用(期末-期初)/期初;
 产品/分类名称匹配一律 LIKE '%名%'(科创板 → prdt_type_name LIKE '%科创%'), 禁止精确等值;
 年龄分桶默认边界(题面未给时): <30 / [30,50) / [50,60) / ≥60;
 营业部统计粒度: 按 分公司(up_org_name)+营业部名称(org_name) 聚合, 同名营业部合并, 不按 org_id 拆分;
 客户等级名称以 dim_public.describe 为准(如 '紫金理财钻石卡客户' 含"客户"后缀), 不得截断;
-分类维度同时输出 code 与 describe(一级=up_prdt_type_id+up_prdt_type_name, 二级=prdt_type_id+prdt_type_name);
-问"哪个/哪些客户"必须输出客户号 pty_id。"""
+产品分类维度(一级/二级)同时输出 ID 与名称两列, 列名用"一级分类ID/一级分类"、"二级分类ID/二级分类"(一级=up_prdt_type_id+up_prdt_type_name, 二级=prdt_type_id+prdt_type_name; 不要用"产品一级分类编码/产品二级分类名称"等冗长列名); 其他编码维度(客户等级/性别/学历/职业等)只输出 dim_public.describe 名称列, 不要额外输出 code/ID 列;
+问"哪个/哪些客户"必须输出客户号 pty_id; 普通/信用账户分组时, 账户列直接输出 sys_source 原值(nm/fc), 不要 CASE WHEN 转成"普通账户/信用账户"中文。"""
 
 
 def norm(v):
@@ -269,16 +310,36 @@ def percentile(sorted_times, p):
     return sorted_times[min(int(p * n), n - 1)]
 
 
+def parse_args(argv):
+    """解析命令行参数: 默认全量; --ids 按题号过滤, --limit 限制题数(便于单题迭代)。"""
+    import argparse
+    ap = argparse.ArgumentParser(description="评测 runner: 默认全量 40 问")
+    ap.add_argument("--ids", help="逗号分隔题号, 如 C02,C07; 缺省=全量")
+    ap.add_argument("--limit", type=int, default=None, help="只跑前 N 题; 缺省=不限")
+    return ap.parse_args(argv)
+
+
 def main():
+    opts = parse_args(sys.argv[1:])
     bench = json.loads(BENCH.read_text(encoding="utf-8"))
-    items = bench["items"]
+    all_items = bench["items"]
+    ids_wanted = [s.strip() for s in (opts.ids or "").split(",") if s.strip()]
+    items = [q for q in all_items if q["id"] in ids_wanted] if ids_wanted else list(all_items)
+    if opts.limit is not None:
+        items = items[:opts.limit]
+    partial = len(items) != len(all_items)
+    if ids_wanted:
+        missing = [i for i in ids_wanted if i not in {q["id"] for q in all_items}]
+        if missing:
+            sys.exit(f"未知题号: {missing}")
     meta = get_table_meta(str(DB))
     api_key = load_api_key()
     forced_model = os.environ.get("LLM_MODEL", "").strip()
     agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
-                       sql_hints=SQL_HINTS)
+                       sql_hints=SQL_HINTS, caliber_assertions=CALIBER_ASSERTIONS)
 
-    print(f"评测开始: {len(items)} 问, 全量 deepseek-chat(空响应实验结论, 双跑取平均)"
+    print(f"评测开始: {len(items)}/{len(all_items)} 问{' (部分运行: 不覆盖基线报告)' if partial else ''}, "
+          f"全量 deepseek-chat(空响应实验结论, 双跑取平均)"
           + (f", LLM_MODEL={forced_model} 覆盖" if forced_model else ""), flush=True)
     t_all_start = time.time()
     records = []
@@ -357,7 +418,10 @@ def main():
     }, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\n明细已写: {run_file}")
 
-    # ---- 基线报告 ----
+    # ---- 基线报告(仅全量运行覆盖; 部分运行只落 run JSON 供逐题迭代) ----
+    if partial:
+        print("部分运行: 跳过 docs/评测报告-基线.md(仅全量运行覆盖基线报告)。")
+        return
     lines = []
     A = lines.append
     A("# 评测报告-基线(M2)")
