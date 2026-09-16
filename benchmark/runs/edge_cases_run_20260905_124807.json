@@ -1,0 +1,86 @@
+{
+ "generated_at": "2026-09-05T12:48:07",
+ "results": [
+  {
+   "ok": true,
+   "detail": "rows=6 err=",
+   "elapsed_ms": 7037,
+   "error": "",
+   "id": "E1",
+   "scenario": "正常查询",
+   "method": "real"
+  },
+  {
+   "ok": true,
+   "detail": "sql=SELECT SUM(nm_tot_aset + fc_pur_aset) AS 总资产 FROM dws_cust_aset_d WHERE data_dt  note_has_assumption=True",
+   "elapsed_ms": 5573,
+   "error": "",
+   "id": "E2",
+   "scenario": "缺信息可默认(仅缺时间范围)",
+   "method": "real"
+  },
+  {
+   "ok": false,
+   "detail": "clarify=[]",
+   "elapsed_ms": 1590,
+   "error": "",
+   "id": "E3",
+   "scenario": "缺必填信息(指标不明, 交互追问)",
+   "method": "real"
+  },
+  {
+   "ok": true,
+   "detail": "reason=问题涉及天气和主观投资建议，与数据库中的客户、交易、持仓等业务数据无关。",
+   "elapsed_ms": 1232,
+   "error": "",
+   "id": "E4",
+   "scenario": "不可答(闲聊/库外概念/主观建议)",
+   "method": "real"
+  },
+  {
+   "ok": true,
+   "detail": "calls=['SELECT 1', 'SELECT 2'] sql=SELECT 2",
+   "elapsed_ms": 0,
+   "error": "",
+   "id": "E5",
+   "scenario": "SQL 生成错→自修复",
+   "method": "unit"
+  },
+  {
+   "ok": true,
+   "detail": "error=SQL 执行失败且自动修复未成功: syntax error near x",
+   "elapsed_ms": 0,
+   "error": "SQL 执行失败且自动修复未成功: syntax error near x",
+   "id": "E6",
+   "scenario": "修复后仍失败→兜底报错",
+   "method": "unit"
+  },
+  {
+   "ok": false,
+   "detail": "rows=1 explain=截至2026年3月31日，持有名称包含“不存在产品ZZZ”的产品的客户人数为 **0**。这意味着在该日期，没有任何客户持有符合该名称条件的产品。可能的原因是：",
+   "elapsed_ms": 8842,
+   "error": "",
+   "id": "E7",
+   "scenario": "空结果",
+   "method": "real"
+  },
+  {
+   "ok": true,
+   "detail": "truncated=True rows=100",
+   "elapsed_ms": 0,
+   "error": "",
+   "id": "E8",
+   "scenario": "结果超限截断",
+   "method": "unit"
+  },
+  {
+   "ok": true,
+   "detail": "error=理解问题阶段失败: LLM API 连接失败",
+   "elapsed_ms": 0,
+   "error": "理解问题阶段失败: LLM API 连接失败",
+   "id": "E9",
+   "scenario": "LLM 网络或 API 故障",
+   "method": "unit"
+  }
+ ]
+}
