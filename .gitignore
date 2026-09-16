@@ -5,6 +5,7 @@ __pycache__/
 venv/
 
 # 数据库文件（生成的，不入库）
+# 注意: 数据集里的 enterprise.db(87.7MB) 也被这条挡住, 那是有意的
 *.db
 *.sqlite
 *.sqlite3
@@ -24,3 +25,12 @@ Thumbs.db
 # reasonix 编码 agent 的运行时状态(会话事件/任务锁/快照/话题标题) —— 不是源码
 # 注意: 配置 reasonix.toml 是入库的, 别一起忽略
 .reasonix/
+
+# 数据集里的 4 个大表(≈64MB)不入库 —— 进了 git 历史就永久留着, 删起来要重写历史。
+# 规则: 这个目录里 >1MB 的事实表/维表走本地, 小文件(表结构 表描述.sql / Q&A.xlsx /
+# 小于 1MB 的小维表)是入库的。所以这里点名列出, 不用 *.csv 通配 ——
+# 免得将来新增的小文件被静默排除。要共享大表时再考虑 Git LFS。
+Agentic智能问数在客户营销场景的应用数据集/dim_product_202606021049.csv
+Agentic智能问数在客户营销场景的应用数据集/dwd_cust_hold_d_202606021051.csv
+Agentic智能问数在客户营销场景的应用数据集/dwd_cust_tran_d_202606021051.csv
+Agentic智能问数在客户营销场景的应用数据集/dws_cust_aset_d_202606021051.csv
