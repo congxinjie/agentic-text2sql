@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智能问数 Agent · 本地演示</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --line:#e3e6ee; --ink:#1f2430; --sub:#6b7280; --brand:#2f54eb; --ok:#16a34a; --warn:#b45309; --fail:#dc2626; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif; background:var(--bg); color:var(--ink); line-height:1.6; }
+  header { background:linear-gradient(135deg,#1d39c4,#2f54eb); color:#fff; padding:22px 20px; }
+  header h1 { margin:0 0 6px; font-size:24px; }
+  header p { margin:0; opacity:.92; font-size:14px; }
+  main { max-width:1080px; margin:20px auto 60px; padding:0 16px; }
+  .ask { display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .ask input { flex:1 1 320px; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:15px; }
+  .ask button { background:var(--brand); color:#fff; border:none; border-radius:8px; padding:10px 18px; font-size:15px; cursor:pointer; }
+  .ask button:disabled { opacity:.55; cursor:wait; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .chips button { background:#eef1ff; color:var(--brand); border:1px solid #dbe2ff; border-radius:999px; padding:5px 12px; font-size:13px; cursor:pointer; }
+  #status { margin:12px 4px; color:var(--sub); font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; margin:14px 0; padding:16px 18px; }
+  details { background:var(--card); border:1px solid var(--line); border-radius:12px; margin:14px 0; padding:14px 18px; }
+  summary { cursor:pointer; font-weight:600; font-size:16px; }
+  details[open] summary { margin-bottom:10px; }
+  pre { background:#0f172a; color:#e2e8f0; border-radius:8px; padding:12px; overflow:auto; font-size:13px; max-height:420px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th,td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; max-width:320px; overflow-wrap:anywhere; }
+  th { background:#f1f3f9; }
+  .tag { display:inline-block; border-radius:6px; padding:1px 8px; font-size:12px; margin-right:6px; }
+  .ok { background:#e9f9ef; color:var(--ok); }
+  .warn { background:#fdf3e7; color:var(--warn); }
+  .fail { background:#fdecec; color:var(--fail); }
+  .skip { background:#f1f3f9; color:var(--sub); }
+  .muted { color:var(--sub); font-size:13px; }
+  .trace { list-style:none; padding:0; margin:0; }
+  .trace li { border-left:3px solid var(--line); padding:6px 10px; margin:4px 0; background:#fafbfd; }
+  .trace li.ok { border-left-color:var(--ok); background:#f6fdf8; }
+  .trace li.warn { border-left-color:var(--warn); background:#fdf9f2; }
+  .trace li.fail { border-left-color:var(--fail); background:#fdf6f6; }
+  .hidden { display:none; }
+  .empty { color:var(--sub); padding:8px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 智能问数 Agent</h1>
+  <p>自然语言 → 结构化计划 → 只读 SQL → 结果表格 → 口径说明与默认假设 → 失败自修复过程, 全程可溯源。</p>
+</header>
+<main>
+  <section class="ask">
+    <input id="q" type="text" placeholder="输入你的取数问题, 例如: 各客户等级分别有多少客户?" autocomplete="off">
+    <button id="askBtn">提问</button>
+    <div class="chips" style="width:100%">
+      <button data-q="华东地区有多少客户?">华东地区有多少客户?</button>
+      <button data-q="2025 年哪个月交易金额最高?">2025 年哪个月交易金额最高?</button>
+      <button data-q="今天天气怎么样?适合买基金吗?">今天天气怎么样?</button>
+    </div>
+  </section>
+
+  <div id="status" class="hidden"></div>
+
+  <section id="result" class="hidden">
+    <div class="card">
+      <div id="answerView"></div>
+      <div class="muted" id="metaView"></div>
+    </div>
+
+    <details id="planBox">
+      <summary>① 结构化计划(表 / 字段 / 步序 / 口径断言, 可展开)</summary>
+      <pre id="planView"></pre>
+      <div id="assertView" class="muted"></div>
+    </details>
+
+    <details id="sqlBox">
+      <summary>② SQL</summary>
+      <pre><code id="sqlView"></code></pre>
+    </details>
+
+    <details id="resultBox">
+      <summary>③ 结果表格</summary>
+      <div id="tableWrap"></div>
+    </details>
+
+    <details id="caliberBox">
+      <summary>④ 口径说明与默认假设</summary>
+      <div id="caliberView"></div>
+    </details>
+
+    <details id="repairBox">
+      <summary>⑤ 失败自修复过程(执行轨迹)</summary>
+      <div id="traceView"></div>
+    </details>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const q = $("q"), askBtn = $("askBtn"), status = $("status"), result = $("result");
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function statusMsg(text, show) {
+  status.textContent = text;
+  status.classList.toggle("hidden", !show);
+}
+
+document.querySelectorAll(".chips button").forEach((b) => {
+  b.addEventListener("click", () => { q.value = b.dataset.q; q.focus(); });
+});
+
+function renderTrace(trace) {
+  if (!Array.isArray(trace) || trace.length === 0) {
+    $("traceView").innerHTML = '<div class="empty">(无执行轨迹)</div>';
+    return;
+  }
+  const repaired = trace.filter((t) => t.detail && t.detail.includes("修复"));
+  let html = repaired.length
+    ? `<div class="muted">检测到 ${repaired.length} 次自动修复: ` +
+      repaired.map((t) => `${t.stage}(${t.detail})`).join("; ") + "</div>"
+    : '<div class="muted">本次查询各阶段一次通过, 未触发 SQL 自动修复。</div>';
+  html += '<ul class="trace">' + trace.map((t, i) => {
+    const cls = t.status === "OK" ? "ok" : t.status === "WARN" ? "warn" : "fail";
+    const tag = {OK:"通过", WARN:"修复/告警", FAIL:"失败", SKIP:"跳过"}[t.status] || t.status;
+    return `<li class="${cls}"><span class="tag ${cls}">${esc(tag)}</span>` +
+      `<b>${esc(t.stage)}</b> <span class="muted">${esc(t.elapsed)}s</span>` +
+      `<div class="muted">${esc(t.detail || "")}</div></li>`;
+  }).join("") + "</ul>";
+  $("traceView").innerHTML = html;
+}
+
+function renderPlan(plan, asserts) {
+  if (plan && Object.keys(plan).length) {
+    $("planView").textContent = JSON.stringify(plan, null, 2);
+  } else {
+    $("planView").textContent = "(本次问答未产出结构化计划)";
+  }
+  if (Array.isArray(asserts) && asserts.length) {
+    const items = asserts.map((a) => {
+      const head = a.id || a.desc || "";
+      const body = a.desc ? a.desc.replace(a.id, "") : "";
+      return `<li><b>${esc(head)}</b> ${esc(body)}</li>`;
+    }).join("");
+    $("assertView").innerHTML = `<div>本问命中的口径断言:</div><ul>${items}</ul>`;
+  } else {
+    $("assertView").innerHTML = '<div>本问未命中注入的口径断言。</div>';
+  }
+}
+
+function renderTable(headers, rows, truncated) {
+  if (!Array.isArray(headers) || headers.length === 0) {
+    $("tableWrap").innerHTML = '<div class="empty">(无结果列)</div>';
+    return;
+  }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    $("tableWrap").innerHTML = '<div class="empty">查询无结果: 可能筛选条件过严, 或该时间段无数据。</div>';
+    return;
+  }
+  let html = '<table><thead><tr>' + headers.map((h) => `<th>${esc(h)}</th>`).join("") + "</tr></thead><tbody>";
+  html += rows.map((r) => "<tr>" + (Array.isArray(r) ? r : []).map((v) => `<td>${esc(v)}</td>`).join("") + "</tr>").join("");
+  html += "</tbody></table>";
+  if (truncated) html += '<div class="muted">结果超过 100 行, 仅展示前 100 行。</div>';
+  $("tableWrap").innerHTML = html;
+}
+
+function render(data) {
+  result.classList.remove("hidden");
+  const elapsed = data.elapsed_s != null ? `耗时 ${data.elapsed_s}s · 模型 ${esc(data.model || "-")} · 只读库` : "";
+  $("metaView").textContent = elapsed;
+
+  if (data.ok === false) {
+    $("answerView").innerHTML = `<div class="fail">请求失败: ${esc(data.error || "未知错误")}</div>`;
+    return;
+  }
+  if (data.answerable === false) {
+    $("answerView").innerHTML = `<div class="fail">拒绝回答: ${esc(data.reject_reason || "该问题无法由当前数据库回答")}</div>`;
+    renderTrace(data.trace);
+    return;
+  }
+  if (Array.isArray(data.needs_clarification) && data.needs_clarification.length) {
+    const items = data.needs_clarification.map(esc).map((m) => `<li>${m}</li>`).join("");
+    $("answerView").innerHTML = `<div class="warn">需要追问以下信息:</div><ul>${items}</ul>`;
+    renderTrace(data.trace);
+    return;
+  }
+  if (data.error) {
+    $("answerView").innerHTML = `<div class="fail">处理失败: ${esc(data.error)}</div>`;
+    renderTrace(data.trace);
+    return;
+  }
+
+  $("answerView").innerHTML = `<div class="ok">结论</div><div>${esc(data.explanation || "(无结论)")}</div>`;
+  renderPlan(data.plan, data.caliber_assertions);
+  $("sqlView").textContent = data.sql || "(无 SQL)";
+  renderTable(data.headers, data.rows, data.truncated);
+  const assume = (data.explanation || "").includes("假设") ? data.explanation : "";
+  $("caliberView").innerHTML =
+    `<div><b>结论与口径说明</b>(来自引擎解释阶段):</div>` +
+    `<div>${esc(data.explanation || "无")}</div>` +
+    (assume ? "" : '<div class="muted">若解释阶段未单独列出默认假设, 请结合上文"结构化计划"与"执行轨迹"中的理解阶段查看假设。</div>');
+  renderTrace(data.trace);
+}
+
+async function ask() {
+  const question = q.value.trim();
+  if (!question) { statusMsg("请先输入问题。", true); return; }
+  askBtn.disabled = true;
+  statusMsg("Agent 处理中: 理解 → 检索 → 计划 → 检查 → SQL → 安全校验 → 执行 → 结果 → 解释 …", true);
+  try {
+    const resp = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, clarify: false })
+    });
+    const data = await resp.json();
+    statusMsg("", false);
+    render(data);
+  } catch (e) {
+    statusMsg("请求失败: " + e, true);
+  } finally {
+    askBtn.disabled = false;
+  }
+}
+
+askBtn.addEventListener("click", ask);
+q.addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
+</script>
+</body>
+</html>

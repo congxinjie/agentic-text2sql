@@ -39,6 +39,28 @@
 
 要点：演示模式**无需外部账号**；真实调用需本地 `.env.local` 里的 DeepSeek API 密钥（**不入库**）。
 
+## 如何启动演示（M8 本地演示层）
+
+纯标准库本地服务，只绑 `127.0.0.1`，只读访问数据库，API key 只在服务端读取、不进前端：
+
+```bash
+# 默认演示小库(引擎默认语义)
+python demo/server.py --db customer_marketing_db/marketing.db --port 8000
+
+# 项目主库: 券商企业口径经 JSON 文件注入(演示层不内嵌口径)
+python demo/server.py --db "Agentic智能问数在客户营销场景的应用数据集/enterprise.db" \
+                      --biz-context demo/enterprise_biz.json --port 8000
+```
+
+浏览器打开 `http://127.0.0.1:8000`，一次问答即可看到：结构化计划 / SQL / 结果表格 /
+口径说明与默认假设 / 失败自修复过程。接口与演示细节见 [`docs/演示脚本.md`](docs/演示脚本.md)。
+
+无头自检（不调用 LLM）：
+
+```bash
+python demo/selfcheck.py           # 依赖 / 域词 / 口径同源 / judge 未动 / 服务冒烟
+```
+
 ## 两个数据库，别搞混
 
 | | `marketing.db` | `enterprise.db` |
