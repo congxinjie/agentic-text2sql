@@ -1,0 +1,413 @@
+{
+ "generated_at": "2026-09-17T00:19:21",
+ "db": "C:\\Users\\30818\\agentic-text2sql\\Agentic智能问数在客户营销场景的应用数据集\\enterprise.db",
+ "benchmark": "C:\\Users\\30818\\agentic-text2sql\\benchmark\\benchmark.json",
+ "total_elapsed_ms": 41993,
+ "metrics": {
+  "all": {
+   "n": 4,
+   "exec_rate": 100.0,
+   "result_rate": 100.0,
+   "caliber_rate": 100.0,
+   "e2e_rate": 100.0,
+   "hallucination_rate": 0.0,
+   "p50_ms": 10399,
+   "p90_ms": 14365,
+   "max_ms": 14365
+  },
+  "by_difficulty": {
+   "simple": {},
+   "medium": {
+    "n": 1,
+    "exec_rate": 100.0,
+    "result_rate": 100.0,
+    "caliber_rate": 100.0,
+    "e2e_rate": 100.0,
+    "hallucination_rate": 0.0,
+    "p50_ms": 8056,
+    "p90_ms": 8056,
+    "max_ms": 8056
+   },
+   "complex": {
+    "n": 3,
+    "exec_rate": 100.0,
+    "result_rate": 100.0,
+    "caliber_rate": 100.0,
+    "e2e_rate": 100.0,
+    "hallucination_rate": 0.0,
+    "p50_ms": 10399,
+    "p90_ms": 14365,
+    "max_ms": 14365
+   }
+  }
+ },
+ "records": [
+  {
+   "id": "M11",
+   "question": "2026-03-31 各客户等级客户的总资产分别是多少?",
+   "difficulty": "medium",
+   "category": "指标查询",
+   "tables": [
+    "dws_cust_aset_d",
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "SELECT p.describe AS 客户等级, ROUND(SUM(s.nm_tot_aset+s.fc_pur_aset),4) AS 总资产 FROM dws_cust_aset_d s JOIN ads_cust_info_d a ON s.pty_id=a.pty_id AND a.data_dt='20260531' JOIN dim_public p ON a.cust_lvl_cd=p.code AND p.code_type_id='100' WHERE s.data_dt='20260331' GROUP BY p.describe ORDER BY 总资产 DESC",
+   "caliber_notes": "资产取 20260331 快照;等级经 100 解码;总资产=nm_tot_aset+fc_pur_aset。",
+   "expect_time": [
+    "20260331",
+    "20260531"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d",
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户等级",
+     "总资产"
+    ],
+    "rows": [
+     [
+      "紫金理财钻石卡客户",
+      374619378.0222
+     ],
+     [
+      "紫金理财白金卡客户",
+      140762627.2047
+     ],
+     [
+      "紫金理财金卡客户",
+      60061397.7867
+     ],
+     [
+      "紫金理财银卡客户",
+      19356475.8411
+     ],
+     [
+      "紫金理财卡客户",
+      1407726.9494
+     ],
+     [
+      "空",
+      134373.91
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8056,
+   "sql": "SELECT dp.describe AS 客户等级, SUM(COALESCE(a.nm_tot_aset,0) + COALESCE(a.fc_pur_aset,0)) AS 总资产\nFROM dws_cust_aset_d a\nJOIN ads_cust_info_d c ON a.pty_id = c.pty_id AND c.data_dt = '20260531'\nJOIN dim_public dp ON c.cust_lvl_cd = dp.code AND dp.code_type_id = '100'\nWHERE a.data_dt = '20260331'\nGROUP BY dp.describe\nORDER BY 总资产 DESC",
+   "rows": [
+    [
+     "紫金理财钻石卡客户",
+     374619378.0222
+    ],
+    [
+     "紫金理财白金卡客户",
+     140762627.2047
+    ],
+    [
+     "紫金理财金卡客户",
+     60061397.7867
+    ],
+    [
+     "紫金理财银卡客户",
+     19356475.8411
+    ],
+    [
+     "紫金理财卡客户",
+     1407726.9494
+    ],
+    [
+     "空",
+     134373.91
+    ]
+   ],
+   "headers": [
+    "客户等级",
+    "总资产"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "explanation": "截至 2026-03-31，客户总资产随客户等级升高呈明显递增趋势。紫金理财钻石卡客户总资产最高，约 3.75 亿元；白金卡客户约 1.41 亿元；金卡客户约 6006 万元；银卡客户约 1936 万元；普通紫金理财卡客户约 141 万元。此外还有少量客户等级为空的记录，总资产约 13.4 万元。总资产按\"总资产 = nm_tot_aset + fc_pur_aset\"口径计算，客户等级名称取自 dim_public.describe。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C01",
+   "question": "2026 年一季度全库客户的盈亏合计是多少?(盈亏=期末总资产-期初总资产+资金流出-资金流入)",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dws_cust_aset_d",
+    "dws_cust_fin_d"
+   ],
+   "gold_sql": "WITH s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id), f AS (SELECT pty_id, SUM(cash_out+tran_out+assign_out) AS o, SUM(cash_in+tran_in+assign_in) AS i FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id) SELECT ROUND(SUM(COALESCE(e.a,0)-COALESCE(s.a,0)+COALESCE(f.o,0)-COALESCE(f.i,0)),4) AS 盈亏合计 FROM e LEFT JOIN s ON e.pty_id=s.pty_id LEFT JOIN f ON e.pty_id=f.pty_id",
+   "caliber_notes": "盈亏=期末资产-期初资产+资金流出-资金流入(队伍口径约定);资产=nm_tot_aset+fc_pur_aset;资金流=cash/tran/assign 三列。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d",
+    "dws_cust_fin_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "盈亏合计"
+    ],
+    "rows": [
+     [
+      -12115125.9498
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 9169,
+   "sql": "WITH s AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) AS a\n  FROM dws_cust_aset_d\n  WHERE data_dt = (SELECT MIN(data_dt) FROM dws_cust_aset_d WHERE data_dt BETWEEN '20260101' AND '20260331')\n  GROUP BY pty_id\n),\ne AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) AS a\n  FROM dws_cust_aset_d\n  WHERE data_dt = (SELECT MAX(data_dt) FROM dws_cust_aset_d WHERE data_dt BETWEEN '20260101' AND '20260331')\n  GROUP BY pty_id\n),\nf AS (\n  SELECT pty_id,\n         SUM(cash_out + tran_out + assign_out) AS o,\n         SUM(cash_in + tran_in + assign_in) AS i\n  FROM dws_cust_fin_d\n  WHERE data_dt BETWEEN '20260101' AND '20260331'\n  GROUP BY pty_id\n)\nSELECT ROUND(SUM(COALESCE(e.a,0) - COALESCE(s.a,0) + COALESCE(f.o,0) - COALESCE(f.i,0)), 4) AS 盈亏合计\nFROM e\nLEFT JOIN s ON e.pty_id = s.pty_id\nLEFT JOIN f ON e.pty_id = f.pty_id",
+   "rows": [
+    [
+     -12115125.9498
+    ]
+   ],
+   "headers": [
+    "盈亏合计"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "explanation": "2026年一季度全库客户盈亏合计为 **-12,115,125.95 元**，即整体处于亏损状态。\n\n该结果按以下口径计算：期初资产取一季度内最早日期的总资产，期末资产取最晚日期的总资产，并在此基础上加回资金流出、扣减资金流入，得到区间内的净盈亏。\n\n需要说明的是，期初、期末总资产均按\"普通总资产+场外购买资产\"口径统计，资金流入/流出分别按现金、转账、转让三类合计；此外，该计算仅覆盖期末有资产记录的客户（以期末表为主表关联），期初无资产或期间已清户的客户可能未完全纳入，实际全库口径可能略有差异。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C02",
+   "question": "紫金理财钻石卡、男性、40 岁以上、且 2026-03-31 持有比亚迪相关产品超过 1000 的客户,2026 年一季度盈亏合计是多少?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_public",
+    "dwd_cust_hold_d",
+    "dim_product",
+    "dws_cust_aset_d",
+    "dws_cust_fin_d"
+   ],
+   "gold_sql": "WITH seg AS (SELECT DISTINCT a.pty_id FROM ads_cust_info_d a JOIN dim_public l ON a.cust_lvl_cd=l.code AND l.code_type_id='100' JOIN dim_public g ON a.gender_cd=g.code AND g.code_type_id='500' WHERE a.data_dt='20260531' AND l.describe='紫金理财钻石卡客户' AND g.describe='男' AND a.cust_age>40 AND a.pty_id IN (SELECT h.pty_id FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.prdt_name LIKE '%比亚迪%' GROUP BY h.pty_id HAVING SUM(h.hold_cnt)>1000)), s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id), f AS (SELECT pty_id, SUM(cash_out+tran_out+assign_out) AS o, SUM(cash_in+tran_in+assign_in) AS i FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id) SELECT COUNT(*) AS 客户数, ROUND(SUM(COALESCE(e.a,0)-COALESCE(s.a,0)+COALESCE(f.o,0)-COALESCE(f.i,0)),4) AS 盈亏合计 FROM seg LEFT JOIN e ON seg.pty_id=e.pty_id LEFT JOIN s ON seg.pty_id=s.pty_id LEFT JOIN f ON seg.pty_id=f.pty_id",
+   "caliber_notes": "客群=钻石卡(100 解码)+男(500 解码)+age>40+期末持有比亚迪>1000 份;盈亏口径同 C01。",
+   "expect_time": [
+    "20260101",
+    "20260331",
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_public",
+    "dwd_cust_hold_d",
+    "dim_product",
+    "dws_cust_aset_d",
+    "dws_cust_fin_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户数",
+     "盈亏合计"
+    ],
+    "rows": [
+     [
+      1,
+      -661039.389
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 14365,
+   "sql": "WITH cust AS (\n  SELECT c.pty_id\n  FROM ads_cust_info_d c\n  JOIN dim_public lv ON c.cust_lvl_cd = lv.code AND lv.code_type_id = '100'\n  JOIN dim_public gd ON c.gender_cd = gd.code AND gd.code_type_id = '500'\n  WHERE c.data_dt = '20260531'\n    AND lv.describe = '紫金理财钻石卡客户'\n    AND gd.describe = '男'\n    AND c.cust_age > 40\n),\nhold AS (\n  SELECT h.pty_id\n  FROM dwd_cust_hold_d h\n  JOIN dim_product p ON h.prdt_id = p.prdt_id\n  WHERE h.data_dt = '20260331'\n    AND p.prdt_name LIKE '%比亚迪%'\n  GROUP BY h.pty_id\n  HAVING SUM(h.hold_cnt) > 1000\n),\ntarget AS (\n  SELECT c.pty_id\n  FROM cust c\n  JOIN hold h ON c.pty_id = h.pty_id\n),\ns AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) AS a\n  FROM dws_cust_aset_d\n  WHERE data_dt = '20260101'\n  GROUP BY pty_id\n),\ne AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) AS a\n  FROM dws_cust_aset_d\n  WHERE data_dt = '20260331'\n  GROUP BY pty_id\n),\nf AS (\n  SELECT pty_id,\n         SUM(cash_out + tran_out + assign_out) AS o,\n         SUM(cash_in + tran_in + assign_in) AS i\n  FROM dws_cust_fin_d\n  WHERE data_dt BETWEEN '20260101' AND '20260331'\n  GROUP BY pty_id\n)\nSELECT COUNT(DISTINCT t.pty_id) AS 客户数,\n       ROUND(SUM(COALESCE(e.a,0) - COALESCE(s.a,0) + COALESCE(f.o,0) - COALESCE(f.i,0)), 4) AS 盈亏合计\nFROM target t\nLEFT JOIN e ON t.pty_id = e.pty_id\nLEFT JOIN s ON t.pty_id = s.pty_id\nLEFT JOIN f ON t.pty_id = f.pty_id",
+   "rows": [
+    [
+     1,
+     -661039.389
+    ]
+   ],
+   "headers": [
+    "客户数",
+    "盈亏合计"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "explanation": "符合条件的客户只有 1 位，其在 2026 年一季度的盈亏合计为 **-661,039.39 元**，即亏损约 66.1 万元。\n\n需要说明几点口径假设：客户筛选按 2026-05-31 的客户信息快照（紫金理财钻石卡、男性、年龄大于 40 岁），持有条件按 2026-03-31 快照、产品名称含\"比亚迪\"且份额合计超过 1000；盈亏按\"（期末总资产-期初总资产）+（资金流出-资金流入）\"计算，期初取 2026-01-01、期末取 2026-03-31。由于结果仅 1 行，可直接作为最终结论。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C07",
+   "question": "2026-01-10 至 2026-02-15,科创板产品交易额超过 25 万的客户,按营业部统计交易额?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dwd_cust_tran_d",
+    "dim_product",
+    "ads_cust_info_d",
+    "dim_branch"
+   ],
+   "gold_sql": "WITH t AS (SELECT t.pty_id, SUM(t.buy_amt+t.sell_amt) AS amt FROM dwd_cust_tran_d t JOIN dim_product d ON t.prdt_id=d.prdt_id WHERE t.data_dt BETWEEN '20260110' AND '20260215' AND d.prdt_type_name LIKE '%科创%' GROUP BY t.pty_id HAVING SUM(t.buy_amt+t.sell_amt)>250000) SELECT b.up_org_name AS 分公司, b.org_name AS 营业部, COUNT(*) AS 客户数, ROUND(SUM(t.amt),4) AS 交易额 FROM t JOIN ads_cust_info_d a ON t.pty_id=a.pty_id AND a.data_dt='20260531' JOIN dim_branch b ON a.org_id=b.org_id GROUP BY b.up_org_name, b.org_name ORDER BY 交易额 DESC",
+   "caliber_notes": "交易量按金额口径(队伍约定)=buy_amt+sell_amt;科创板按 prdt_type_name LIKE;区间=20260110~20260215。",
+   "expect_time": [
+    "20260110",
+    "20260215"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d",
+    "dim_product",
+    "ads_cust_info_d",
+    "dim_branch"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "分公司",
+     "营业部",
+     "客户数",
+     "交易额"
+    ],
+    "rows": [
+     [
+      "苏州分公司",
+      "张家******营业部",
+      44,
+      172005739.27
+     ],
+     [
+      "无锡分公司",
+      "无锡******营业部",
+      1,
+      5114499.16
+     ],
+     [
+      "南京分公司",
+      "南京******营业部",
+      1,
+      625231.01
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 10399,
+   "sql": "WITH cust_tran AS (\n  SELECT t.pty_id, SUM(t.buy_amt + t.sell_amt) AS tran_amt\n  FROM dwd_cust_tran_d t\n  JOIN dim_product p ON t.prdt_id = p.prdt_id\n  WHERE t.data_dt BETWEEN '20260110' AND '20260215'\n    AND p.prdt_type_name LIKE '%科创%'\n  GROUP BY t.pty_id\n  HAVING SUM(t.buy_amt + t.sell_amt) > 250000\n)\nSELECT b.up_org_name AS 分公司,\n       b.org_name AS 营业部,\n       COUNT(DISTINCT ct.pty_id) AS 客户数,\n       SUM(ct.tran_amt) AS 交易额\nFROM cust_tran ct\nJOIN ads_cust_info_d c ON ct.pty_id = c.pty_id\nJOIN dim_branch b ON c.org_id = b.org_id\nGROUP BY b.up_org_name, b.org_name\nORDER BY 交易额 DESC",
+   "rows": [
+    [
+     "苏州分公司",
+     "张家******营业部",
+     44,
+     172005739.27
+    ],
+    [
+     "无锡分公司",
+     "无锡******营业部",
+     1,
+     5114499.16
+    ],
+    [
+     "南京分公司",
+     "南京******营业部",
+     1,
+     625231.01
+    ]
+   ],
+   "headers": [
+    "分公司",
+    "营业部",
+    "客户数",
+    "交易额"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "explanation": "2026年1月10日至2月15日期间，科创板交易额超过25万元的客户共分布在3家营业部。苏州分公司张家港某营业部贡献最大，有44名达标客户，合计交易额约1.72亿元，远超其他两家。无锡分公司某营业部仅1名客户达标，交易额约511万元；南京分公司某营业部同样1名客户，交易额约62.5万元。整体看，达标客户高度集中在苏州地区，其余两家营业部仅个别大额客户入围。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  }
+ ]
+}

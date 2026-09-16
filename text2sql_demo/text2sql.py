@@ -19,7 +19,7 @@
 
 用法:
     python3 text2sql.py "华东地区有多少客户？"
-    python3 text2sql.py --db ../customer_marketing_db/marketing.db "2025年哪个月交易额最高？"
+    python3 text2sql.py --db ../customer_marketing_db/marketing.db "2025年哪个月交易金额最高？"
     python3 text2sql.py            # 无参数进入交互模式(支持追问)
 
 配置(环境变量或 .env.local):
@@ -443,7 +443,7 @@ UNDERSTAND_SYS = """你是数据分析 Agent 的"问题理解器"。根据数据
   "question_specificity": "clear"
 }
 规则:
-1. answerable=false 的情形: 与库无关的闲聊/外部信息(天气、股票行情、政策新闻等); 需要库中不存在的业务字段(如"客户收入""客户职业"); 纯主观建议(如"该买什么产品")。
+1. answerable=false 的情形: 与库无关的闲聊/外部信息(天气、股票行情、政策新闻等); 需要库中不存在的业务字段(如"客户收入"等库外字段); 纯主观建议(如"该买什么产品")。仅因问题含糊/缺少分析目标时, 不要设 answerable=false, 应保持 answerable=true 并把缺失项放进 missing。
 2. metrics 是用户想计算的指标(金额/数量/占比/排名等), dimensions 是想按什么分组, 都没有则给空数组。
 3. filters 用自然语言描述筛选条件; time_range 单独提取时间范围描述, 没有则空字符串。
 4. missing 是计算所必需但用户没提供的信息。required=true 表示缺了它无法计算(如指标没提); required=false 表示可用合理默认(如时间范围没提)。
@@ -453,7 +453,7 @@ UNDERSTAND_SYS = """你是数据分析 Agent 的"问题理解器"。根据数据
 RETRIEVE_SYS = """你是数据分析 Agent 的"检索器"。根据问题理解, 从给定表结构中挑出回答该问题需要用到(或大概率用到)的表与列, 输出 JSON:
 {
   "tables": [
-    {"table": "transactions", "columns": ["trans_date", "amount", "trans_type"], "why": "计算交易额需要日期与金额"}
+    {"table": "transactions", "columns": ["trans_date", "amount", "trans_type"], "why": "计算交易金额需要日期与金额"}
   ]
 }
 规则:
@@ -476,7 +476,7 @@ PLAN_SYS = """你是数据分析 Agent 的"查询计划器"。基于问题理解
     {"name": "交易总额", "desc": "指标列"}
   ],
   "dimension_labels": [
-    {"dimension": "客户等级", "code_field": "a.cust_lvl_cd", "label_field": "p.describe"}
+    {"dimension": "地区", "code_field": "c.region_cd", "label_field": "d.describe"}
   ]
 }
 规则:
@@ -485,12 +485,12 @@ PLAN_SYS = """你是数据分析 Agent 的"查询计划器"。基于问题理解
 3. 用户给了时间范围必须体现在 filters 或 steps 中。
 4. 不要写具体 SQL, 只写计划。
 5. output_columns 必填: 列出最终结果应展示的每一个列(维度列/指标列/客户标识列), name 用中文业务名。标量题(只问一个合计值)只能有一个 output_columns 项。
-6. 若问题先筛选出一批满足客户级条件的客户(如"交易额超过25万的客户""持有某产品超过1000的客户"), 再求这批客户的指标合计: 按维度分组统计时 output_columns = 维度列 + "客户数" + 指标列; 不分组直接合计时 output_columns = "客户数" + 指标列。若只是按维度直接分组统计、没有客户级阈值筛选, 不要额外加"客户数"。
-7. 有维度分组时, dimension_labels 必须为每个维度声明展示字段: 编码类维度(客户等级/性别/学历/职业等)只展示解码后的业务名称字段(如 dim_public.describe), 不要输出 code/ID 列; 只有产品分类维度(一级/二级分类)才同时输出 ID 与名称两列。
-8. 问题问"哪个/哪些客户"时, output_columns 必须包含客户标识列(pty_id, 展示名为"客户号")。
-9. 若指标需要先按客户(pty_id)聚合并用 HAVING 过滤(如"超过N"), 再按维度分组汇总, steps 必须写明这两步顺序, 禁止先按维度分组再 HAVING(会把不满足 N 的客户并入)。
-10. output_columns 只列最终展示列; 计算过程的中间列(如期初/期末资产、买入/卖出拆分)不要声明, 除非用户明确要求分开看。"前N/最高/最大/哪些"类排名/明细题不要额外加"客户数"。
-11. 输出列命名要简洁: 产品分类维度的 ID 列用"一级分类ID/二级分类ID", 名称列用"一级分类/二级分类"; 其他编码维度(客户等级/性别/学历/职业等)只输出名称列; 指标列用"总资产/交易额/持仓市值"等业务名, 不要加"产品/客户"前缀或"编码/名称/合计"后缀(盈亏合计、交易额合计这类口径名除外)。"""
+6. 若问题先筛选出一批满足客户级条件的客户(如"某指标达到阈值的客户"), 再求这批客户的指标合计: 按维度分组统计时 output_columns = 维度列 + "客户数" + 指标列; 不分组直接合计时 output_columns = "客户数" + 指标列。若只是按维度直接分组统计、没有客户级阈值筛选, 不要额外加"客户数"。
+7. 有维度分组时, dimension_labels 必须为每个维度声明展示字段: 编码类维度只展示解码后的业务名称字段(以业务说明给出的解码字典为准), 不要输出 code/ID 列; 只有层级分类维度才同时输出 ID 与名称两列。
+8. 问题问"哪个/哪些客户"时, output_columns 必须包含业务说明指定的客户标识列, 展示名用"客户号"。
+9. 若指标需要先按客户标识聚合并用 HAVING 过滤(如"达到N"), 再按维度分组汇总, steps 必须写明这两步顺序, 禁止先按维度分组再 HAVING(会把不满足 N 的客户并入)。
+10. output_columns 只列最终展示列; 计算过程的中间列不要声明, 除非用户明确要求分开看。"前N/最高/最大/哪些"类排名/明细题不要额外加"客户数"。
+11. 输出列命名要简洁: 具体命名约定(哪些维度输出 ID 与名称、指标列用什么业务名)以业务说明中的约定为准, 不要加"产品/客户"前缀或"编码/名称/合计"后缀(业务口径名除外)。"""
 
 EXPLAIN_SYS = """你是数据分析 Agent 的"结论解释器"。根据用户问题、执行成功的 SQL 和查询结果, 用简洁自然的中文解释结论:
 - 结论先行, 再给关键数字(引用结果中的数值)。
@@ -690,9 +690,7 @@ class QueryAgent:
             if any(c == "客户数" for c in declared) and not count_only_metrics:
                 issues.append("排名/明细题 output_columns 不应额外包含 客户数")
         elif u.filters and u.metrics and not count_only_metrics:
-            has_customer_cond = any(
-                re.search(r"持有|超过|以上|交易过|交易额|年龄|性别|等级", f)
-                for f in u.filters)
+            has_customer_cond = self._has_customer_condition(u)
             if has_customer_cond:
                 if not u.dimensions and not plan.get("group_by"):
                     if not any(c == "客户数" for c in declared):
@@ -734,6 +732,8 @@ class QueryAgent:
         trig = " ".join([u.summary or "", u.time_range or "",
                          " ".join(u.metrics), " ".join(u.dimensions), " ".join(u.filters)])
         for rule in self.caliber_assertions:
+            if "output_contract" in rule:  # 输出列契约规则在 4.7b 与 _enforce_output_contract 处理
+                continue
             when = rule.get("when") or []
             if when and not all(str(k) in trig for k in when):
                 continue
@@ -783,6 +783,19 @@ class QueryAgent:
                          " ".join(u.dimensions), " ".join(u.filters)])
         return any(k in text for k in ("最高", "最大", "前10", "前 10", "哪些", "排名", "TOP", "top"))
 
+    def _has_customer_condition(self, u: Understanding) -> bool:
+        """通用机制: 客群筛选触发词由调用方经 caliber_assertions 注入(字段 output_contract.when_any),
+        引擎不内置任何域词表。仅当注入侧声明了触发词且命中 u.filters 时返回 True。"""
+        trig = " ".join(u.filters)
+        for rule in self.caliber_assertions:
+            oc = rule.get("output_contract")
+            if not isinstance(oc, dict):
+                continue
+            when_any = [str(k) for k in (oc.get("when_any") or [])]
+            if when_any and any(k in trig for k in when_any):
+                return True
+        return False
+
     def _enforce_output_contract(self, u: Understanding, plan: dict) -> dict:
         """M6 输出列契约程序化兜底(通用规则, 不针对题号/指标名):
         客群筛选后再求指标合计/按维度统计时, 计划若仍缺"客户数"则补齐声明;
@@ -804,9 +817,7 @@ class QueryAgent:
             return new_plan
         if count_only_metrics:
             return plan
-        has_customer_cond = any(
-            re.search(r"持有|超过|以上|交易过|交易额|年龄|性别|等级", f)
-            for f in u.filters)
+        has_customer_cond = self._has_customer_condition(u)
         if not has_customer_cond:
             return plan
         if "客户数" in names:
@@ -829,9 +840,9 @@ class QueryAgent:
                 f"请只输出一条 SQLite 只读 SQL 语句本身, 不要解释、不要 markdown 代码块。\n"
                 f"规则: 只允许 SELECT/WITH/EXPLAIN 开头; 表名列名必须来自给定结构; 金额是 REAL, 日期是 TEXT(YYYY-MM-DD); "
                 f"聚合结果加 ORDER BY, 明细查询加 LIMIT 50。"
-                f"SELECT 输出列必须严格等于计划 output_columns 声明的列, 禁止额外输出中间列(如期初总资产/期末总资产、买入金额/卖出金额拆分), 除非计划明确列出。"
-                f"多表聚合必须用 JOIN ON 关联键(如 pty_id), 禁止 CROSS JOIN 笛卡尔积; "
-                f"跨表合计必须先按客户分组聚合, 再在客户粒度用 LEFT JOIN 关联(主表为期末口径表), 缺失记录 COALESCE(...,0), 最后 SUM 汇总, 保证不漏客户。")
+                f"SELECT 输出列必须严格等于计划 output_columns 声明的列, 禁止额外输出中间计算列/过程拆分列, 除非计划明确列出。"
+                f"多表聚合必须用 JOIN ON 关联键(以业务说明给出的客户标识/关联键为准), 禁止 CROSS JOIN 笛卡尔积; "
+                f"跨表合计必须先按客户标识分组聚合, 再在客户粒度用 LEFT JOIN 关联(主表为期末口径表), 缺失记录 COALESCE(...,0), 最后 SUM 汇总, 保证不漏客户。")
         declared = self._declared_cols(plan)
         if declared:
             user += ("\n\n硬约束(输出列契约, 必须逐字满足): 结果表头必须包含以下列, 用相同中文 AS 别名: "
@@ -976,6 +987,11 @@ class QueryAgent:
             ans.trace = self.trace
             return ans
         ans.trace = self.trace
+        # M6.1: LLM 自相矛盾兜底——仅因分析目标缺失不应判不可答; 允许追问时优先转为追问
+        if (clarify and not u.answerable and u.missing_required
+                and any(any(k in m for k in ("指标", "分析目标", "统计对象", "分析对象")) for m in u.missing_required)):
+            ans.needs_clarification = u.missing_required
+            return ans
         if not u.answerable:
             ans.answerable = False
             ans.reject_reason = u.reason or "该问题无法由当前数据库回答"

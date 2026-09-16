@@ -1,0 +1,746 @@
+{
+ "generated_at": "2026-09-17T00:50:47",
+ "source": "runs/run_20260917_004637.json",
+ "note": "跑时中间版判定(runtime) vs 当前最终判定器(final); 判定器改动只重判不重跑 LLM",
+ "metrics": {
+  "runtime": {
+   "n": 40,
+   "exec": 100.0,
+   "res": 100.0,
+   "cal": 100.0,
+   "e2e": 100.0,
+   "hal": 0.0
+  },
+  "final": {
+   "n": 40,
+   "exec": 100.0,
+   "res": 100.0,
+   "cal": 100.0,
+   "e2e": 100.0,
+   "hal": 0.0
+  }
+ },
+ "rescued": [],
+ "records": [
+  {
+   "id": "S01",
+   "difficulty": "simple",
+   "question": "客户主档中共有多少客户?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S02",
+   "difficulty": "simple",
+   "question": "客户的平均年龄是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S03",
+   "difficulty": "simple",
+   "question": "客户中年龄最大的是多少岁?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S04",
+   "difficulty": "simple",
+   "question": "各省份分别有多少客户?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S05",
+   "difficulty": "simple",
+   "question": "各城市分别有多少客户?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S06",
+   "difficulty": "simple",
+   "question": "共有多少个营业部?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S07",
+   "difficulty": "simple",
+   "question": "产品维表里共有多少个产品?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S08",
+   "difficulty": "simple",
+   "question": "产品共分为多少个二级分类?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S09",
+   "difficulty": "simple",
+   "question": "2026-03-31 全库客户总资产是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S10",
+   "difficulty": "simple",
+   "question": "2026-03-31 全库客户现金资产合计是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S11",
+   "difficulty": "simple",
+   "question": "2026 年一季度全库客户买入金额合计是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S12",
+   "difficulty": "simple",
+   "question": "2026 年一季度全库客户卖出金额合计是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S13",
+   "difficulty": "simple",
+   "question": "2026 年一季度客户交易笔数(买入+卖出)合计是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "S14",
+   "difficulty": "simple",
+   "question": "2026-03-31 全库客户持仓市值合计是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M01",
+   "difficulty": "medium",
+   "question": "各客户等级分别有多少客户?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M02",
+   "difficulty": "medium",
+   "question": "男性、女性客户各有多少人?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M03",
+   "difficulty": "medium",
+   "question": "各学历客户分别有多少人?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M04",
+   "difficulty": "medium",
+   "question": "各职业客户分别有多少人(前 10)?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M05",
+   "difficulty": "medium",
+   "question": "按年龄段(30 岁以下/30-50/50-60/60 以上)客户分别有多少人?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M06",
+   "difficulty": "medium",
+   "question": "硕士及以上学历的女性客户有多少人?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M07",
+   "difficulty": "medium",
+   "question": "各分公司下分别有多少营业部?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M08",
+   "difficulty": "medium",
+   "question": "2026 年一季度各产品一级分类的买入金额分别是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M09",
+   "difficulty": "medium",
+   "question": "各分公司分别有多少客户?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M10",
+   "difficulty": "medium",
+   "question": "2026 年一季度普通账户和信用账户的交易金额分别是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M11",
+   "difficulty": "medium",
+   "question": "2026-03-31 各客户等级客户的总资产分别是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M12",
+   "difficulty": "medium",
+   "question": "2026 年一季度交易额(买入+卖出)前 10 的客户是哪些?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M13",
+   "difficulty": "medium",
+   "question": "2026 年一季度交易过招商银行相关产品的客户有多少人?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "M14",
+   "difficulty": "medium",
+   "question": "2026-03-31 持仓市值最高的 10 个产品二级分类是哪些?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C01",
+   "difficulty": "complex",
+   "question": "2026 年一季度全库客户的盈亏合计是多少?(盈亏=期末总资产-期初总资产+资金流出-资金流入)",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C02",
+   "difficulty": "complex",
+   "question": "紫金理财钻石卡、男性、40 岁以上、且 2026-03-31 持有比亚迪相关产品超过 1000 的客",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C03",
+   "difficulty": "complex",
+   "question": "2026 年一季度日均总资产超过 30 万、且股票交易额超过 10 万的客户有多少人?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C04",
+   "difficulty": "complex",
+   "question": "2026-03-31 相对 2026-01-01,总资产增幅最大的 10 个客户是哪些?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C05",
+   "difficulty": "complex",
+   "question": "2026 年一季度各客户等级客户的资金净流入(流入-流出)分别是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C06",
+   "difficulty": "complex",
+   "question": "2026 年一季度交易过招商银行相关产品、且 2026-03-31 持有中国平安相关产品的客户有多少",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C07",
+   "difficulty": "complex",
+   "question": "2026-01-10 至 2026-02-15,科创板产品交易额超过 25 万的客户,按营业部统计交",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C08",
+   "difficulty": "complex",
+   "question": "2026-03-31 各客户等级中总资产最高的客户及其资产是多少?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C09",
+   "difficulty": "complex",
+   "question": "2026 年一季度交易天数最多的 5 个客户是哪些?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C10",
+   "difficulty": "complex",
+   "question": "2026 年一季度交易天数超过 20 天的客户有多少人?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C11",
+   "difficulty": "complex",
+   "question": "按年龄段和客户等级交叉统计客户人数?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  },
+  {
+   "id": "C12",
+   "difficulty": "complex",
+   "question": "2026-03-31 各营业部客户总资产合计最高的 10 个营业部是哪些?",
+   "runtime": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "final": {
+    "exec_ok": true,
+    "result_ok": true,
+    "caliber_ok": true,
+    "hallucination": false
+   },
+   "rescued": false
+  }
+ ]
+}

@@ -110,6 +110,13 @@ CALIBER_ASSERTIONS = [
         "must_not_contain": [],
         "desc": "盈亏=期末总资产-期初总资产+资金流出-资金流入; 总资产=nm_tot_aset+fc_pur_aset; 资金流=cash/tran/assign",
     },
+    {
+        "id": "客群筛选后输出客户数",
+        "output_contract": {
+            "when_any": ["持有", "超过", "以上", "交易过", "交易额", "年龄", "性别", "等级"]
+        },
+        "desc": "客群筛选(客户级阈值条件)后再求指标合计/按维度统计时, 输出列契约应包含客户数列; 触发词由评测侧注入, 引擎不内置",
+    },
 ]
 
 RULES_CHANGES = [    "R1 口径启发式: expect_tables 全属于单快照/纯维度表时豁免 data_dt 字面量检查(已被 R7 收窄)。",
@@ -132,6 +139,9 @@ ENTERPRISE_BIZ = """券商客户营销库(2026-Q1 事实 + 客户主档单快照
 【产品】一级分类用 up_prdt_type_id(PT040000 股票/PT030000 债券/PT050000 开放式基金/PT070000 理财/PT090000 恒生多金融/PT020000 权证/PT060000 衍生品/PT080000 回购/PT100000 私募/PT110000 贵金属/PT990000 现金类), 二级分类用 prdt_type_id/prdt_type_name(如 科创板/A股/沪港通)。注意 up_prdt_type_id 与 prdt_type_id 存在同名多义(如 PT090000 同时叫恒生多金融产品/OTC产品), 归类以 ID 为准。产品名(prdt_name)用于按名称过滤, 如 比亚迪/招商银行/中国平安。
 【账户与币种】sys_source: nm=普通账户, fc=信用账户; ccy: 0 人民币/1 美元/2 港币。资产表无 sys_source, nm/fc 为并列字段。
 【关键口径(队伍约定)】总资产=nm_tot_aset+fc_pur_aset; 现金资产=nm_bal+fc_bal; 交易额=buy_amt+sell_amt; 交易笔数=buy_cnt+sell_cnt; 交易天数=COUNT(DISTINCT data_dt); 日均=区间合计/区间天数(资产 90 天); 交易量未注明单位一律按金额; 盈亏=(期末总资产-期初总资产)+(资金流出-资金流入), 其中资金流入=cash_in+tran_in+assign_in, 资金流出=cash_out+tran_out+assign_out。
+【列名约定(M6.1 补: 原在引擎里的命名约束, 按解耦要求搬到这里)】指标列用业务原名, 不加"客户/产品/该"等前缀,
+不加"合计/编码/名称"等后缀(仅当队伍口径名本身含"合计"时例外, 如"盈亏合计"); 维度列按问题里的称呼,
+如"营业部""客户等级""一级分类"。
 【易错提醒】客户表只有 20260531 一个日期; 营业部与客户姓名已脱敏; 过滤日期用 data_dt 的 YYYYMMDD 字符串比较; 营业部数=dim_branch 行数 COUNT(*)(一行一网点, 同名营业部是不同网点, 不要 COUNT(DISTINCT org_name))。
 【易混口径(M3.6 固化, 必须遵守)】"持有某产品超过 N"(未注明市值/金额)按份额口径 SUM(hold_cnt)>N, 不用 mkt_val;
 "增幅"默认是绝对增量(期末-期初), 只有题面说"增幅率/增速/涨幅"才用(期末-期初)/期初;
