@@ -326,6 +326,7 @@ def parse_args(argv):
     ap = argparse.ArgumentParser(description="评测 runner: 默认全量 40 问")
     ap.add_argument("--ids", help="逗号分隔题号, 如 C02,C07; 缺省=全量")
     ap.add_argument("--limit", type=int, default=None, help="只跑前 N 题; 缺省=不限")
+    ap.add_argument("--no-report", action="store_true", help="全量运行也不覆盖 docs/评测报告-基线.md(稳定性多轮跑批用); 缺省=覆盖")
     return ap.parse_args(argv)
 
 
@@ -431,6 +432,9 @@ def main():
     # ---- 基线报告(仅全量运行覆盖; 部分运行只落 run JSON 供逐题迭代) ----
     if partial:
         print("部分运行: 跳过 docs/评测报告-基线.md(仅全量运行覆盖基线报告)。")
+        return
+    if getattr(opts, "no_report", False):
+        print("--no-report: 跳过 docs/评测报告-基线.md(全量 run JSON 已落盘)。")
         return
     lines = []
     A = lines.append
