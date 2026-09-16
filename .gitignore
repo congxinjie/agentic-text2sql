@@ -20,3 +20,7 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+
+# reasonix 编码 agent 的运行时状态(会话事件/任务锁/快照/话题标题) —— 不是源码
+# 注意: 配置 reasonix.toml 是入库的, 别一起忽略
+.reasonix/
