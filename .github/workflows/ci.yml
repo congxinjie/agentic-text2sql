@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 环境信息(系统 python3, 不安装任何包)
         run: |
