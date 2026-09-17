@@ -30,8 +30,26 @@
 （每一档的口径与判据见 [`docs/评测报告-基线.md`](docs/评测报告-基线.md) 与 [`benchmark/`](benchmark/)；
 完整开发过程在 git 历史里）
 
-## 目录
+## 交付物清单(对应命题成果形式)
 
+命题原文(2)"成果形式"列出八项,逐项对应到本仓库的**可点开**文件:
+
+| # | 命题成果形式 | 本仓库位置 | 说明 |
+|---|---|---|---|
+| 1 | 可运行的 AI 智能取数 Agent 原型系统 | [`text2sql_demo/text2sql.py`](text2sql_demo/text2sql.py)(CLI)、[`demo/server.py`](demo/server.py)(本地 Web,含 SSE 等待期反馈)、[`text2sql_demo/app.py`](text2sql_demo/app.py)(Streamlit 备选入口) | 三个入口都能跑;启动命令见「跑起来」与 [`text2sql_demo/README.md`](text2sql_demo/README.md) |
+| 2 | 源代码 | 仓库根(引擎 [`text2sql_demo/text2sql.py`](text2sql_demo/text2sql.py) 1355 行 9 阶段状态机 + [`benchmark/`](benchmark/) 评测 harness + [`demo/`](demo/) 演示层) | 关键模块中文注释;零第三方依赖(CI 机器证明) |
+| 3 | 运行说明 | [README.md](README.md)(本文件:「跑起来」「如何启动演示」「CI / 自动校验」)+ [`text2sql_demo/README.md`](text2sql_demo/README.md)(环境/部署/配置/评测复现/FAQ) | 演示模式无需外部账号;真实调用读本地 `.env.local` |
+| 4 | 元数据组织方案 | [`docs/元数据组织方案.md`](docs/元数据组织方案.md) | 表/字段/指标/维度/口径字典的组织格式与注入方式 |
+| 5 | 工具调用方案 | [`docs/工具调用方案.md`](docs/工具调用方案.md) | 工具清单、输入输出契约、调用顺序与依赖、重试与兜底、域知识切分 |
+| 6 | 安全围栏设计说明 | [`docs/安全设计说明.md`](docs/安全设计说明.md) | §2 只读三保险;§3「命题四类合法性 ↔ 代码行号」对照表 |
+| 7 | 自然语言问数样例 | [`benchmark/benchmark.json`](benchmark/benchmark.json)(40 问,人工标注标准 SQL 与口径)、[`benchmark/edge_cases.json`](benchmark/edge_cases.json)(E1–E9 边界)、[`docs/测试与案例.md`](docs/测试与案例.md)(简/中/复各 ≥3 例真实运行) | 样例均可复跑 |
+| 8 | 生成结果及准确率评估 | [`docs/评测报告-基线.md`](docs/评测报告-基线.md) + [`benchmark/runs/`](benchmark/runs/)(逐题明细 JSON)+ [`benchmark/run_eval.py`](benchmark/run_eval.py)(runner)+ [`benchmark/run_edge_cases.py`](benchmark/run_edge_cases.py) | 数字全部来自真实运行,口径见 [`docs/评测口径定义.md`](docs/评测口径定义.md) |
+
+> 命题里的术语(意图 / 实体 / 维度 / 指标 / 筛选条件)与代码字段的逐项对照,见
+> [`docs/算法说明.md`](docs/算法说明.md) 的 NLU 一节「**命题术语 ↔ 代码字段对照表**」(其中"实体"如实标注为未实现独立字段)。
+> 另一份按 COMPETITION.md §3「八项成果物」口径的对账见 [`docs/交付对账.md`](docs/交付对账.md)。
+
+## 目录
 | 路径 | 内容 |
 |---|---|
 | `text2sql_demo/` | 原型系统：`app.py`（Streamlit UI）+ `text2sql.py`（CLI）双入口、`app_core.py` 引擎 |
