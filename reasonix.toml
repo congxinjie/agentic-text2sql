@@ -1,4 +1,4 @@
-default_model = "deepseek-pro"
+default_model = "deepseek-flash"
 
 [[providers]]
 name           = "deepseek-flash"
