@@ -1,0 +1,72 @@
+# M11 工程化 CI —— 让第三方 clone 后一键自证(工程质量补分)
+#
+# 边界(刻意划清):
+#   跑 —— 不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网的那一半;
+#   不跑 —— 评测(benchmark/run_eval.py)与边界用例(benchmark/run_edge_cases.py),
+#           它们依赖 enterprise.db 与真实 API 密钥, 只在本地跑, 见 README"CI / 自动校验"。
+#
+# 三条硬约束(体现"零第三方依赖"):
+#   1. 只用 ubuntu-latest 自带系统 python3, 全流程**不做任何第三方包安装**(无 pip / 无 requirements);
+#   2. **不联网调用 LLM** —— 端到端冒烟与 SSE 契约都用桩 LLM 驱动引擎(零 API 调用);
+#   3. 本文件与整个仓库**不出现任何密钥**(密钥只在本地 .env.local, 永不入库)。
+#
+# 七步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: 零依赖自证(Linux + 系统 python3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5        # M11 要求: 超时 <= 5 分钟
+    env:
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 环境信息(系统 python3, 不安装任何包)
+        run: |
+          python3 -V
+          python3 -c "import sys; print('prefix:', sys.prefix)"
+
+      # 步骤 ①语法编译
+      - name: ① 语法编译(*.py 全部可编译)
+        run: python3 -m compileall -q ci_check.py text2sql_demo demo benchmark
+
+      # 步骤 ②导入与"无第三方包"断言
+      - name: ② 导入与无第三方包断言
+        run: python3 ci_check.py --only deps
+
+      # 步骤 ③引擎解耦断言(引擎里不得出现券商域词)
+      - name: ③ 引擎解耦断言(无券商域词)
+        run: python3 ci_check.py --only decouple
+
+      # 步骤 ④判定器冻结断言(judge 区间 sha256 与冻结常量一致)
+      - name: ④ 判定器冻结断言
+        run: python3 ci_check.py --only judge
+
+      # 步骤 ⑤密钥泄露防线(全仓库 grep sk-*, 排除未入库的 .env.local)
+      - name: ⑤ 密钥泄露防线
+        run: python3 ci_check.py --only secret
+
+      # 步骤 ⑥合成库(sqlite3 现场建 3 表) + 桩 LLM 端到端冒烟, 零 API 调用
+      - name: ⑥ 合成库 + 桩 LLM 端到端冒烟
+        run: python3 ci_check.py --only synth-smoke
+
+      # 步骤 ⑦SSE 接口契约冒烟(/api/health 200 + 流里有阶段事件与 done 事件)
+      - name: ⑦ SSE 接口契约冒烟
+        run: python3 ci_check.py --only sse

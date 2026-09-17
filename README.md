@@ -82,6 +82,48 @@ python benchmark/sse_same_source_check.py     # 流式终止事件与 POST 响�
 python benchmark/sse_stream_check.py          # 真实 LLM: 逐行读 SSE 打时刻 / 与 POST 字段一致 / 密钥 grep
 ```
 
+## CI / 自动校验（M11）
+
+第三方 clone 本仓库后，**不需要 `enterprise.db`、不需要 API 密钥、也不需要联网**，就能一键自证工程质量：
+
+```bash
+python3 ci_check.py        # 逐项打印 OK/FAIL；任一 FAIL 退出码非 0
+```
+
+CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-latest` + 系统自带 `python3`，
+**不做任何第三方包安装**（零 pip、零 requirements）、**不调用真实 LLM**（一律桩）、工作流里无任何密钥，
+超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 7 项（`ci_check.py` 的检查项 id 一一对应）：
+
+| # | 检查（`python3 ci_check.py --only <id>`） | 内容 |
+|---|---|---|
+| 1 | `syntax` | 全部 `*.py` 语法编译（CI 步骤用 `python3 -m compileall -q …`） |
+| 2 | `deps` | 加载 `text2sql.py` + `demo/server.py` 后 `sys.modules` 只多出标准库 ⇒ **"零第三方依赖"从声明变成机器证明** |
+| 3 | `decouple` | 引擎与演示层不出现券商域词（固定词表 + 从 `demo/enterprise_biz.json` 抽取的 token）⇒ 业务语义只走 `biz_context=` 注入 |
+| 4 | `judge` | `benchmark/run_eval.py` 的 `judge→pct` 区间 sha256 == 冻结常量 ⇒ 判定器冻结（改一行即红） |
+| 5 | `secret` | 全仓库文本文件 grep `sk-[A-Za-z0-9]{20,}`（排除永不入库的 `.env.local` / `.git` / 日志） |
+| 6 | `synth-smoke` | `sqlite3` 现场建 3 张小表 + 桩 LLM 驱动引擎走完整链路（理解→检索→计划→检查→SQL→安全校验→执行→检查结果→解释），**零 API 调用** |
+| 7 | `sse` | 用合成库起 `demo/server.py`：`/api/health` 返回 200，`/api/ask/stream` 流里既有阶段事件也有 `done` 事件（与 `POST /api/ask` 同源字段） |
+
+**刻意不跑什么（边界写清楚）**：`benchmark/run_eval.py`（40 问全量评测）与 `benchmark/run_edge_cases.py`
+（E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，大表不入库，clone 后无法重建）
+② 真实 DeepSeek API 密钥。CI 只覆盖"既不需要数据库、也不需要密钥"的那一半；要复现评测数字，
+按 [`docs/评测报告-基线.md`](docs/评测报告-基线.md) 与 [`text2sql_demo/README.md`](text2sql_demo/README.md) 在本地跑。
+同理，`demo/selfcheck.py`、`benchmark/` 下的若干无头自检工具与 `benchmark/m7_selfcheck.py` 这类
+"与 git HEAD 比对"的检查也留在本机跑（前者需要 `marketing.db`，后者需要完整 git 历史）。
+
+**本地跑同一套检查**（Windows / Linux 同一条命令；脚本用自身文件位置解析仓库根，与 cwd、盘符、系统无关）：
+
+```bash
+python3 ci_check.py                  # 7 项全跑，全绿退出码 0
+python3 ci_check.py --only judge     # 只跑某一项（与 CI 的单步完全一致）
+python3 ci_check.py --only deps,judge
+python3 ci_check.py --list           # 列出检查项 id
+```
+
+**为什么这些检查不是"永远绿"**：每一项都配过负对照（在临时副本里故意破坏 → 检查变红 → 复原，负对照不入库）：
+改坏语法 → `syntax` 红；塞入假 `sk-…` 密钥 → `secret` 红；改判定器一行 → `judge` 红；
+引擎里塞券商域词 → `decouple` 红。
+
 ## 两个数据库，别搞混
 
 | | `marketing.db` | `enterprise.db` |
