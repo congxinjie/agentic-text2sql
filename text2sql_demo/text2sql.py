@@ -569,7 +569,8 @@ EXPLAIN_SYS = """你是数据分析 Agent 的"结论解释器"。根据用户问
 class QueryAgent:
     def __init__(self, db_path: str, api_key: str, verbose: bool = True,
                  biz_context: str | None = None, sql_hints: dict | None = None,
-                 caliber_assertions: list | None = None, sample_rows: int = 2):
+                 caliber_assertions: list | None = None, sample_rows: int = 2,
+                 on_stage=None):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
@@ -582,6 +583,10 @@ class QueryAgent:
         self.caliber_assertions = caliber_assertions or []
         # M9: 样例数据出境开关(默认 2, 与既有行为一致); 0 = 不把任何样例数据拼进 schema
         self.sample_rows = max(0, int(sample_rows))
+        # M10: 可选阶段回调(默认 None = 与未接入回调时的行为逐字节一致)。
+        # 签名 on_stage(stage_title: str, status: str, detail: str): 每个阶段开始(status=RUNNING)
+        # 与阶段结束(status=OK/WARN/FAIL/SKIP)各回调一次。纯旁路, 不参与任何判定逻辑。
+        self.on_stage = on_stage
         self.meta = get_table_meta(db_path)
         self.schema = build_schema(db_path, self.sample_rows)
         self.trace = Trace()
@@ -593,6 +598,26 @@ class QueryAgent:
     def _log(self, msg: str):
         if self.verbose:
             print(msg)
+
+    def _notify(self, title: str, status: str, detail: str = ""):
+        """M10: 触发可选阶段回调(on_stage=None 时直接返回, 保证默认行为不变)。
+
+        纯旁路: 回调抛异常只记一条 WARNING, 绝不影响问答主流程、Trace 与日志内容。
+        """
+        cb = self.on_stage
+        if cb is None:
+            return
+        try:
+            cb(title, status, detail)
+        except Exception as e:  # 展示层的问题不能拖垮取数链路
+            LOG.warning("[阶段回调异常] 阶段=%s 状态=%s 类型=%s",
+                        title, status, type(e).__name__)
+
+    def _begin_stage(self, title: str = ""):
+        """M10: 阶段开始(等价于 trace.begin_stage, 额外可选触发 RUNNING 回调)。"""
+        self.trace.begin_stage(title)
+        if title:
+            self._notify(title, "RUNNING", "")
 
     def _stage(self, title: str, status: str, detail: str = ""):
         self.trace.record(title, status, detail)
@@ -609,13 +634,15 @@ class QueryAgent:
         else:
             LOG.info("[阶段结束] %s status=%s 耗时=%.2fs", title, status, n)
         self._stage_idx += 1
+        # M10: 阶段结束回调(放在最后, 保证既有输出顺序不变)
+        self._notify(title, status, detail)
 
     def _ctx(self) -> str:
         return f"数据库结构:\n{self.schema}\n\n业务说明:\n{self.biz_context}"
 
     # ---- 1 理解问题 ----
     def _understand(self, question: str) -> Understanding:
-        self.trace.begin_stage("理解问题")
+        self._begin_stage("理解问题")
         user = (f"{self._ctx()}\n\n用户问题: {question}\n\n"
                 f"请输出 JSON(只输出 JSON, 不要其他文字)。")
         data = llm_json(UNDERSTAND_SYS, user, self.api_key)
@@ -667,7 +694,7 @@ class QueryAgent:
 
     # ---- 2 检索相关表和字段 ----
     def _retrieve(self, u: Understanding) -> Retrieval:
-        self.trace.begin_stage("检索相关表和字段")
+        self._begin_stage("检索相关表和字段")
         user = (f"{self._ctx()}\n\n问题理解:\n"
                 f"- 意图: {u.summary}\n- 指标: {u.metrics}\n- 维度: {u.dimensions}\n"
                 f"- 筛选: {u.filters}\n- 时间范围: {u.time_range or '无'}\n\n"
@@ -699,7 +726,7 @@ class QueryAgent:
 
     # ---- 3 生成查询计划 ----
     def _plan(self, u: Understanding, r: Retrieval) -> dict:
-        self.trace.begin_stage("生成查询计划")
+        self._begin_stage("生成查询计划")
         user = (f"{self._ctx()}\n\n问题理解:\n- 意图: {u.summary}\n- 指标: {u.metrics}\n"
                 f"- 维度: {u.dimensions}\n- 筛选: {u.filters}\n- 时间范围: {u.time_range or '无'}\n"
                 f"- 默认假设: {u.assumptions or '无'}\n\n"
@@ -713,7 +740,7 @@ class QueryAgent:
 
     # ---- 4 检查查询计划(程序化) ----
     def _check_plan(self, u: Understanding, r: Retrieval, plan: dict) -> tuple[bool, list[str]]:
-        self.trace.begin_stage("检查查询计划")
+        self._begin_stage("检查查询计划")
         issues: list[str] = []
         text = json.dumps(plan, ensure_ascii=False)
 
@@ -831,7 +858,7 @@ class QueryAgent:
 
     # ---- 4b 计划修复(检查不过时, 让 LLM 重规划一次) ----
     def _replan(self, u: Understanding, r: Retrieval, plan: dict, issues: list[str]) -> dict:
-        self.trace.begin_stage("生成查询计划")
+        self._begin_stage("生成查询计划")
         user = (f"{self._ctx()}\n\n原计划:\n{json.dumps(plan, ensure_ascii=False, indent=2)}\n\n"
                 f"检查发现以下问题:\n" + "\n".join(f"- {i}" for i in issues) +
                 f"\n\n请修正计划, 输出新的查询计划 JSON(只输出 JSON)。")
@@ -907,7 +934,7 @@ class QueryAgent:
 
     def _generate_sql(self, u: Understanding, r: Retrieval, plan: dict,
                       check_issues: list[str]) -> str:
-        self.trace.begin_stage("生成SQL")
+        self._begin_stage("生成SQL")
         user = (f"{self._ctx()}\n\n问题: {u.summary}\n"
                 f"指标: {u.metrics} 维度: {u.dimensions}\n筛选: {u.filters}\n"
                 f"时间范围: {u.time_range or '无'}\n默认假设: {u.assumptions or '无'}\n\n"
@@ -956,7 +983,7 @@ class QueryAgent:
 
     # ---- 6 安全校验 ----
     def _validate(self, sql: str) -> str:
-        self.trace.begin_stage("安全校验")
+        self._begin_stage("安全校验")
         cleaned = validate_sql(sql)
         self._stage("安全校验", "OK",
                     "单条只读语句 SELECT/WITH/EXPLAIN, 注释已剥离, 拒绝多语句")
@@ -964,7 +991,7 @@ class QueryAgent:
 
     # ---- 7 执行 ----
     def _execute(self, sql: str):
-        self.trace.begin_stage("执行")
+        self._begin_stage("执行")
         headers, rows, truncated = run_query(self.db_path, sql)
         # M9: 只记 SQL 长度/结果行数/列数, 绝不记 SQL 正文与数据行内容
         LOG.info("[执行] SQL 长度=%d 结果行数=%d 列数=%d 截断=%s",
@@ -976,7 +1003,7 @@ class QueryAgent:
     # ---- 7b SQL 修复一次(执行失败与结果列缺失共用同一修复机制) ----
     def _repair_sql(self, sql: str, problem: object, u: Understanding, plan: dict,
                     stage_title: str = "执行") -> str:
-        self.trace.begin_stage(f"{stage_title}(自动修复)")
+        self._begin_stage(f"{stage_title}(自动修复)")
         reason = str(problem)
         self._log(f"        [自动修复] {reason}")
         LOG.warning("[自动修复] 阶段=%s 原因=%s", stage_title, reason[:160])
@@ -1007,7 +1034,7 @@ class QueryAgent:
 
     def _check_result(self, headers: list, rows: list, truncated: bool,
                       plan: dict | None = None) -> tuple[list[str], list[str]]:
-        self.trace.begin_stage("检查结果")
+        self._begin_stage("检查结果")
         notes = []
         missing = []
         if not rows:
@@ -1028,7 +1055,7 @@ class QueryAgent:
     # ---- 9 解释结果 ----
     def _explain(self, u: Understanding, sql: str, headers: list,
                  rows: list, truncated: bool, notes: list[str]) -> str:
-        self.trace.begin_stage("解释结果")
+        self._begin_stage("解释结果")
         if rows:
             data_lines = [", ".join(f"{h}={str(v)[:24]}" for h, v in zip(headers, r))
                           for r in rows[:EXPLAIN_MAX_ROWS]]
@@ -1061,7 +1088,20 @@ class QueryAgent:
             raise
 
     # ---- 主状态机 ----
-    def run(self, question: str, clarify: bool = True) -> Answer:
+    def run(self, question: str, clarify: bool = True, on_stage=None) -> Answer:
+        """M10: 支持本次 run 临时指定阶段回调(不传则沿用构造时的 on_stage)。
+
+        只做包装: 未传 on_stage 时, 走的是与加回调之前完全相同的 _run 路径。
+        """
+        prev = self.on_stage
+        if on_stage is not None:
+            self.on_stage = on_stage
+        try:
+            return self._run(question, clarify)
+        finally:
+            self.on_stage = prev
+
+    def _run(self, question: str, clarify: bool = True) -> Answer:
         self._stage_idx = 1
         self.trace = Trace()
         ans = Answer(question=question)

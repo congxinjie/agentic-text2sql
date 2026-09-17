@@ -15,6 +15,12 @@
 - 业务口径只经 --biz-context 指向的 JSON 文件注入, 演示层不内嵌任何业务口径。
 - API key 只在服务端经 text2sql.load_api_key() 读取, 绝不进入前端响应。
 - 数据库只读由引擎保证(mode=ro + PRAGMA query_only=ON)。
+
+接口:
+- GET /api/ask?q=...&clarify=false 与 POST /api/ask: 一次性返回完整结果(既有行为, 未变)。
+- GET /api/ask/stream?q=...&clarify=false (M10): text/event-stream 流式返回, 引擎每进入/结束
+  一个阶段就推一条 data: {...}(只含阶段名/状态/序号/时间戳/耗时, 不含 SQL 片段与数据行),
+  最后推一条 {"type":"done","result":{...}}, 其 result 与 /api/ask 的响应逐字段相同。
 """
 import argparse
 import json
@@ -101,9 +107,9 @@ def matched_assertions(question: str, plan: dict | None, rules: list) -> list:
     return out
 
 
-def run_ask(agent: QueryAgent, question: str, clarify: bool) -> dict:
+def run_ask(agent: QueryAgent, question: str, clarify: bool, on_stage=None) -> dict:
     t0 = time.time()
-    ans = agent.run(question, clarify=clarify)
+    ans = agent.run(question, clarify=clarify, on_stage=on_stage)
     elapsed_s = round(time.time() - t0, 2)
     plan = getattr(agent, "last_plan", None)
     return {
@@ -125,7 +131,32 @@ def run_ask(agent: QueryAgent, question: str, clarify: bool) -> dict:
                   for e in ans.trace.entries],
         "elapsed_s": elapsed_s,
         "model": text2sql.MODEL,
+        # M10: 让流式终止事件的 result 与 POST /api/ask 的响应逐字段一致(含 ok)
+        "ok": True,
     }
+
+
+def run_ask_stream(agent: QueryAgent, question: str, clarify: bool, emit) -> dict:
+    """M10: 跑一次问答, 边跑边把阶段进度交给 emit(纯标准库, 不加线程/队列)。
+
+    - 每条阶段事件只含 type/seq/stage/status/ts/elapsed_s; **不带 detail**
+      (detail 可能含 SQL 片段与结果值), 更不含 API 密钥与任何数据行。
+    - 终止事件 {"type": "done", "result": payload} 中的 payload 由同一个 run_ask 产出,
+      因此与 POST /api/ask 的响应逐字段相同。
+    """
+    t0 = time.time()
+    seq = 0
+
+    def _on_stage(stage: str, status: str, detail: str = ""):
+        nonlocal seq
+        seq += 1
+        emit({"type": "stage", "seq": seq, "stage": stage, "status": status,
+              "ts": round(time.time(), 3), "elapsed_s": round(time.time() - t0, 2)})
+
+    payload = run_ask(agent, question, clarify, on_stage=_on_stage)
+    done = {"type": "done", "seq": seq + 1, "ts": round(time.time(), 3), "result": payload}
+    emit(done)
+    return done
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -164,6 +195,53 @@ class Handler(BaseHTTPRequestHandler):
                 return {"ok": False, "question": question,
                         "error": f"{type(e).__name__}: {e}"}
 
+    # ---- M10: SSE 流式问答(text/event-stream, 纯标准库) ----
+    def _sse_open(self):
+        """发送 text/event-stream 响应头(HTTP/1.1 + chunked, 才能边跑边推)。"""
+        self.protocol_version = "HTTP/1.1"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-transform")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        # 万一流被中断, 也别让浏览器自动重发(重发会再花一次 LLM 调用); 前端收到 done 后主动 close()
+        self._sse_write_text("retry: 3600000\n\n")
+
+    def _sse_write_text(self, text: str):
+        """按 chunked 编码写一段 SSE 文本并立即 flush(保证"边跑边推")。"""
+        data = text.encode("utf-8")
+        self.wfile.write(f"{len(data):X}\r\n".encode("ascii") + data + b"\r\n")
+        self.wfile.flush()
+
+    def _sse_send(self, ev: dict):
+        self._sse_write_text("data: " + json.dumps(ev, ensure_ascii=False) + "\n\n")
+
+    def _ask_stream(self, question: str, clarify: bool):
+        """流式问答: 每个阶段到达即推一条事件, 最后推终止事件(内含与 /api/ask 相同的完整结果)。"""
+        self._sse_open()
+        try:
+            with self.server.agent_lock:
+                done = run_ask_stream(self.server.agent, question, clarify, self._sse_send)
+            payload = done["result"]
+            # M9 红线: 只记长度/行数/耗时/状态, 不记问题正文与结果数据
+            LOG.info("[演示流式问答] 问题长度=%d clarify=%s 耗时=%.2fs 阶段事件数=%d 可答=%s 结果行数=%d 有错误=%s",
+                     len(question), clarify, payload.get("elapsed_s") or 0, done["seq"] - 1,
+                     payload.get("answerable"), len(payload.get("rows") or []),
+                     bool(payload.get("error")))
+        except Exception as e:  # 服务端兜底: 前端只拿到可读错误, 不泄漏密钥
+            LOG.error("[演示流式异常] 问题长度=%d 类型=%s 消息=%s",
+                      len(question), type(e).__name__, str(e)[:160])
+            traceback.print_exc(file=sys.stderr)
+            try:
+                self._sse_send({"type": "done", "ts": round(time.time(), 3),
+                                "result": {"ok": False, "question": question,
+                                           "error": f"{type(e).__name__}: {e}"}})
+            except Exception:
+                pass
+        # 不写 chunked 终止符: 连接留给前端收到 done 后 close(), 避免 EventSource 自动重连触发二次问答
+
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path in ("/", "/index.html"):
@@ -177,12 +255,14 @@ class Handler(BaseHTTPRequestHandler):
                 "readonly": True,
                 "sample_rows": self.server.agent.sample_rows,
             })
-        if parsed.path == "/api/ask":
+        if parsed.path in ("/api/ask", "/api/ask/stream"):
             qs = parse_qs(parsed.query)
             question = (qs.get("q") or [""])[0].strip()
             if not question:
                 return self._send_json({"ok": False, "error": "缺少问题参数 q"}, 400)
             clarify = (qs.get("clarify") or ["false"])[0].lower() == "true"
+            if parsed.path == "/api/ask/stream":
+                return self._ask_stream(question, clarify)
             return self._send_json(self._ask(question, clarify))
         return self._send_json({"ok": False, "error": "not found"}, 404)
 

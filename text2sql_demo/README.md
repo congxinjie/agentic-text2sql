@@ -46,10 +46,15 @@ agent = QueryAgent(
     sql_hints={"持有": "口径示例 SQL 片段...", ...},  # 关键词触发 few-shot, 可选
 )
 ans = agent.run("问题", clarify=True)   # clarify=False 用于非交互(评测)
+# M10 可选: 阶段进度回调(不传时行为与以前逐字节一致), 阶段开始/结束各回调一次
+agent.run("问题", clarify=True, on_stage=lambda stage, status, detail: print(stage, status))
 ```
 
 - `biz_context`:注入各 LLM 阶段的业务口径说明,按库切换语义,券商语义不硬编码进引擎。
 - `sql_hints`:生成 SQL 阶段按关键词触发注入口径示例(每类 1 例)。
+- `on_stage`(M10):可选阶段回调 `(stage_title, status, detail)`,`status` 取 `RUNNING`(阶段开始)/
+  `OK`/`WARN`/`FAIL`/`SKIP`(阶段结束);构造参数与 `run` 参数均可传,默认 `None`(不传则行为不变)。
+  演示层用它把阶段进度做成了 SSE 流式接口,见根 [`README.md`](../README.md) 与 [`docs/演示脚本.md`](../docs/演示脚本.md)。
 - 返回 `Answer`:answerable / needs_clarification / sql / headers / rows / truncated / explanation / error / trace。
 
 ## 评测复现命令(全部真实运行)

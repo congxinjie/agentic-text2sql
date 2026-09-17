@@ -1,0 +1,456 @@
+{
+ "generated_at": "2026-09-17T13:44:51",
+ "question": "各客户等级分别有多少客户?",
+ "db": "enterprise.db",
+ "sse_events": [
+  {
+   "type": "stage",
+   "seq": 1,
+   "stage": "理解问题",
+   "status": "RUNNING",
+   "ts": 1789623863.956,
+   "elapsed_s": 0.0
+  },
+  {
+   "type": "stage",
+   "seq": 2,
+   "stage": "理解问题",
+   "status": "OK",
+   "ts": 1789623866.068,
+   "elapsed_s": 2.11
+  },
+  {
+   "type": "stage",
+   "seq": 3,
+   "stage": "检索相关表和字段",
+   "status": "RUNNING",
+   "ts": 1789623866.068,
+   "elapsed_s": 2.11
+  },
+  {
+   "type": "stage",
+   "seq": 4,
+   "stage": "检索相关表和字段",
+   "status": "OK",
+   "ts": 1789623868.127,
+   "elapsed_s": 4.17
+  },
+  {
+   "type": "stage",
+   "seq": 5,
+   "stage": "生成查询计划",
+   "status": "RUNNING",
+   "ts": 1789623868.127,
+   "elapsed_s": 4.17
+  },
+  {
+   "type": "stage",
+   "seq": 6,
+   "stage": "生成查询计划",
+   "status": "OK",
+   "ts": 1789623870.487,
+   "elapsed_s": 6.53
+  },
+  {
+   "type": "stage",
+   "seq": 7,
+   "stage": "检查查询计划",
+   "status": "RUNNING",
+   "ts": 1789623870.487,
+   "elapsed_s": 6.53
+  },
+  {
+   "type": "stage",
+   "seq": 8,
+   "stage": "检查查询计划",
+   "status": "WARN",
+   "ts": 1789623870.49,
+   "elapsed_s": 6.53
+  },
+  {
+   "type": "stage",
+   "seq": 9,
+   "stage": "生成查询计划",
+   "status": "RUNNING",
+   "ts": 1789623870.49,
+   "elapsed_s": 6.53
+  },
+  {
+   "type": "stage",
+   "seq": 10,
+   "stage": "生成查询计划",
+   "status": "WARN",
+   "ts": 1789623873.358,
+   "elapsed_s": 9.4
+  },
+  {
+   "type": "stage",
+   "seq": 11,
+   "stage": "检查查询计划",
+   "status": "RUNNING",
+   "ts": 1789623873.358,
+   "elapsed_s": 9.4
+  },
+  {
+   "type": "stage",
+   "seq": 12,
+   "stage": "检查查询计划",
+   "status": "WARN",
+   "ts": 1789623873.359,
+   "elapsed_s": 9.4
+  },
+  {
+   "type": "stage",
+   "seq": 13,
+   "stage": "生成SQL",
+   "status": "RUNNING",
+   "ts": 1789623873.359,
+   "elapsed_s": 9.4
+  },
+  {
+   "type": "stage",
+   "seq": 14,
+   "stage": "生成SQL",
+   "status": "OK",
+   "ts": 1789623874.692,
+   "elapsed_s": 10.74
+  },
+  {
+   "type": "stage",
+   "seq": 15,
+   "stage": "安全校验",
+   "status": "RUNNING",
+   "ts": 1789623874.693,
+   "elapsed_s": 10.74
+  },
+  {
+   "type": "stage",
+   "seq": 16,
+   "stage": "安全校验",
+   "status": "OK",
+   "ts": 1789623874.693,
+   "elapsed_s": 10.74
+  },
+  {
+   "type": "stage",
+   "seq": 17,
+   "stage": "执行",
+   "status": "RUNNING",
+   "ts": 1789623874.693,
+   "elapsed_s": 10.74
+  },
+  {
+   "type": "stage",
+   "seq": 18,
+   "stage": "执行",
+   "status": "OK",
+   "ts": 1789623874.695,
+   "elapsed_s": 10.74
+  },
+  {
+   "type": "stage",
+   "seq": 19,
+   "stage": "检查结果",
+   "status": "RUNNING",
+   "ts": 1789623874.695,
+   "elapsed_s": 10.74
+  },
+  {
+   "type": "stage",
+   "seq": 20,
+   "stage": "检查结果",
+   "status": "OK",
+   "ts": 1789623874.695,
+   "elapsed_s": 10.74
+  },
+  {
+   "type": "stage",
+   "seq": 21,
+   "stage": "解释结果",
+   "status": "RUNNING",
+   "ts": 1789623874.695,
+   "elapsed_s": 10.74
+  },
+  {
+   "type": "stage",
+   "seq": 22,
+   "stage": "解释结果",
+   "status": "OK",
+   "ts": 1789623876.194,
+   "elapsed_s": 12.24
+  },
+  {
+   "type": "done",
+   "seq": 23,
+   "ts": 1789623876.194,
+   "result": {
+    "question": "各客户等级分别有多少客户?",
+    "answerable": true,
+    "reject_reason": "",
+    "needs_clarification": [],
+    "sql": "SELECT p.describe AS 客户等级, COUNT(a.pty_id) AS 客户数\nFROM ads_cust_info_d a\nLEFT JOIN dim_public p\n  ON a.cust_lvl_cd = p.code AND p.code_type_id = '100'\nWHERE a.data_dt BETWEEN '20260531' AND '20260531'\nGROUP BY p.describe\nORDER BY 客户数 DESC",
+    "headers": [
+     "客户等级",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "紫金理财银卡客户",
+      151
+     ],
+     [
+      "紫金理财金卡客户",
+      118
+     ],
+     [
+      "紫金理财白金卡客户",
+      73
+     ],
+     [
+      "空",
+      65
+     ],
+     [
+      "紫金理财卡客户",
+      63
+     ],
+     [
+      "紫金理财钻石卡客户",
+      30
+     ]
+    ],
+    "truncated": false,
+    "explanation": "按 2026-05-31 快照统计,客户主档中共有 500 位客户。其中紫金理财银卡客户最多,为 151 人;其次是金卡客户 118 人、白金卡客户 73 人、紫金理财卡客户 63 人、钻石卡客户 30 人。另有 65 位客户的等级在维度表中未匹配到对应名称,显示为空值,建议核对这部分客户的等级编码配置。客户数按客户号 pty_id 计数,等级名称取自维度表 dim_public。",
+    "error": "",
+    "plan": {
+     "summary": "按客户主档 20260531 快照，将 cust_lvl_cd 关联 dim_public（code_type_id='100'）解码为客户等级名称，统计各等级客户数",
+     "tables": [
+      "ads_cust_info_d",
+      "dim_public"
+     ],
+     "joins": [
+      "ads_cust_info_d LEFT JOIN dim_public ON ads_cust_info_d.cust_lvl_cd = dim_public.code AND dim_public.code_type_id = '100'"
+     ],
+     "filters": [
+      {
+       "field": "ads_cust_info_d.data_dt",
+       "op": "between",
+       "value": [
+        "20260531",
+        "20260531"
+       ],
+       "desc": "客户主档快照日期范围 20260531~20260531"
+      },
+      {
+       "field": "dim_public.code_type_id",
+       "op": "=",
+       "value": "100",
+       "desc": "客户等级编码字典类型"
+      }
+     ],
+     "aggregations": [
+      {
+       "func": "COUNT",
+       "field": "ads_cust_info_d.pty_id",
+       "alias": "客户数"
+      }
+     ],
+     "group_by": [
+      {
+       "expr": "dim_public.describe",
+       "alias": "客户等级"
+      }
+     ],
+     "order_by": [
+      {
+       "expr": "客户数",
+       "dir": "DESC"
+      }
+     ],
+     "limit": null,
+     "steps": [
+      "筛选客户主档 data_dt 在 20260531~20260531 区间的快照",
+      "cust_lvl_cd 关联 dim_public（code_type_id='100'）取客户等级名称 describe",
+      "按客户等级名称分组",
+      "计数客户号 pty_id 得到客户数"
+     ],
+     "output_columns": [
+      {
+       "name": "客户等级",
+       "desc": "维度列，取 dim_public.describe 客户等级名称"
+      },
+      {
+       "name": "客户数",
+       "desc": "该等级下的客户数量（按 pty_id 计数）"
+      }
+     ],
+     "dimension_labels": [
+      {
+       "dimension": "客户等级",
+       "code_field": "ads_cust_info_d.cust_lvl_cd",
+       "label_field": "dim_public.describe"
+      }
+     ]
+    },
+    "caliber_assertions": [
+     {
+      "id": "客群筛选后输出客户数",
+      "output_contract": {
+       "when_any": [
+        "持有",
+        "超过",
+        "以上",
+        "交易过",
+        "交易额",
+        "年龄",
+        "性别",
+        "等级"
+       ]
+      },
+      "desc": "客群筛选(客户级阈值条件)后再求指标合计/按维度统计时, 输出列契约应包含客户数列; 触发词由评测侧注入, 引擎不内置"
+     }
+    ],
+    "trace": [
+     {
+      "stage": "理解问题",
+      "status": "OK",
+      "detail": "指标=[客户数]; 维度=[客户等级]; 筛选=[客户主档快照 data_dt='20260531'; cust_lvl_cd 关联 dim_public（code_type_id='100'）取客户等级名称]; 时间范围=20260531 ~ 20260531",
+      "elapsed": 2.11
+     },
+     {
+      "stage": "检索相关表和字段",
+      "status": "OK",
+      "detail": "ads_cust_info_d(data_dt, pty_id, cust_lvl_cd); dim_public(code, code_type_id, describe)",
+      "elapsed": 2.06
+     },
+     {
+      "stage": "生成查询计划",
+      "status": "OK",
+      "detail": "计划: 按客户主档 20260531 快照，将 cust_lvl_cd 关联 dim_public（code_type_id='100'）解码为客户等级名称，统计各等级客户数 | 表=['ads_cust_info_d', 'dim_public'] | 聚合=[{'func': 'COUNT', 'field': 'ads_cust_info_d.pty_id', 'alias': '客户数'}]",
+      "elapsed": 2.36
+     },
+     {
+      "stage": "检查查询计划",
+      "status": "WARN",
+      "detail": "发现问题: 时间范围「20260531 ~ 20260531」未体现在计划中",
+      "elapsed": 0.0
+     },
+     {
+      "stage": "生成查询计划",
+      "status": "WARN",
+      "detail": "根据检查结果自动修正计划(一次)",
+      "elapsed": 2.87
+     },
+     {
+      "stage": "检查查询计划",
+      "status": "WARN",
+      "detail": "发现问题: 时间范围「20260531 ~ 20260531」未体现在计划中",
+      "elapsed": 0.0
+     },
+     {
+      "stage": "生成SQL",
+      "status": "OK",
+      "detail": "SELECT p.describe AS 客户等级, COUNT(a.pty_id) AS 客户数\nFROM ads_cust_info_d a\nLEFT JOIN dim_public p\n  ON a.cust_lvl_cd = p.code AND p.code_type_id = '100'\nWHERE a.data_dt BETWEEN '20260531' AND '20260531'…",
+      "elapsed": 1.33
+     },
+     {
+      "stage": "安全校验",
+      "status": "OK",
+      "detail": "单条只读语句 SELECT/WITH/EXPLAIN, 注释已剥离, 拒绝多语句",
+      "elapsed": 0.0
+     },
+     {
+      "stage": "执行",
+      "status": "OK",
+      "detail": "只读执行成功: 6 行",
+      "elapsed": 0.0
+     },
+     {
+      "stage": "检查结果",
+      "status": "OK",
+      "detail": "结果正常",
+      "elapsed": 0.0
+     },
+     {
+      "stage": "解释结果",
+      "status": "OK",
+      "detail": "按 2026-05-31 快照统计,客户主档中共有 500 位客户。其中紫金理财银卡客户最多,为 151 人;其次是金卡客户 118 人、白金卡客户 73 人、紫金理财卡客户 63 人、钻石卡客户 30 人。另有 65 位客户的等级在维度表…",
+      "elapsed": 1.5
+     }
+    ],
+    "elapsed_s": 12.24,
+    "model": "deepseek-v4-flash",
+    "ok": true
+   }
+  }
+ ],
+ "sse_event_times": [
+  0.002,
+  2.113,
+  2.114,
+  4.172,
+  4.173,
+  6.533,
+  6.533,
+  6.536,
+  6.536,
+  9.404,
+  9.404,
+  9.404,
+  9.405,
+  10.738,
+  10.738,
+  10.739,
+  10.739,
+  10.74,
+  10.74,
+  10.741,
+  10.741,
+  12.24,
+  12.24
+ ],
+ "sse_total_s": 12.24,
+ "post_result_keys": [
+  "answerable",
+  "caliber_assertions",
+  "elapsed_s",
+  "error",
+  "explanation",
+  "headers",
+  "model",
+  "needs_clarification",
+  "ok",
+  "plan",
+  "question",
+  "reject_reason",
+  "rows",
+  "sql",
+  "trace",
+  "truncated"
+ ],
+ "sse_result_keys": [
+  "answerable",
+  "caliber_assertions",
+  "elapsed_s",
+  "error",
+  "explanation",
+  "headers",
+  "model",
+  "needs_clarification",
+  "ok",
+  "plan",
+  "question",
+  "reject_reason",
+  "rows",
+  "sql",
+  "trace",
+  "truncated"
+ ],
+ "value_diffs_excluding_elapsed": [
+  "explanation",
+  "plan",
+  "sql",
+  "trace"
+ ],
+ "fails": []
+}

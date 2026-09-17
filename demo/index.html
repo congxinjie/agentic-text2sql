@@ -19,6 +19,13 @@
   .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
   .chips button { background:#eef1ff; color:var(--brand); border:1px solid #dbe2ff; border-radius:999px; padding:5px 12px; font-size:13px; cursor:pointer; }
   #status { margin:12px 4px; color:var(--sub); font-size:14px; }
+  #timer { color:var(--brand); font-variant-numeric:tabular-nums; }
+  .steps { list-style:none; padding:0; margin:10px 0 0; display:flex; flex-wrap:wrap; gap:6px; }
+  .steps li { border:1px solid var(--line); border-radius:999px; padding:3px 12px; font-size:13px; color:var(--sub); background:#fff; }
+  .steps li.doing { border-color:var(--brand); color:var(--brand); background:#eef1ff; font-weight:600; }
+  .steps li.done { border-color:var(--ok); color:var(--ok); background:#e9f9ef; }
+  .steps li.warn { border-color:var(--warn); color:var(--warn); background:#fdf3e7; }
+  .steps li.fail { border-color:var(--fail); color:var(--fail); background:#fdecec; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; margin:14px 0; padding:16px 18px; }
   details { background:var(--card); border:1px solid var(--line); border-radius:12px; margin:14px 0; padding:14px 18px; }
   summary { cursor:pointer; font-weight:600; font-size:16px; }
@@ -58,7 +65,10 @@
     </div>
   </section>
 
-  <div id="status" class="hidden"></div>
+  <div id="status" class="hidden">
+    <div><span id="statusText"></span> <span class="muted">已用</span> <b id="timer">0.0s</b></div>
+    <ul class="steps" id="steps"></ul>
+  </div>
 
   <section id="result" class="hidden">
     <div class="card">
@@ -104,8 +114,9 @@ function esc(s) {
   }[c]));
 }
 
+// M10: 状态区文案(阶段进度条与计时器由下方 ask 流程驱动)
 function statusMsg(text, show) {
-  status.textContent = text;
+  $("statusText").textContent = text;
   status.classList.toggle("hidden", !show);
 }
 
@@ -205,24 +216,122 @@ function render(data) {
   renderTrace(data.trace);
 }
 
-async function ask() {
-  const question = q.value.trim();
-  if (!question) { statusMsg("请先输入问题。", true); return; }
-  askBtn.disabled = true;
-  statusMsg("Agent 处理中: 理解 → 检索 → 计划 → 检查 → SQL → 安全校验 → 执行 → 结果 → 解释 …", true);
+// M10: 阶段进度条(与引擎阶段一一对应) + 已用秒数计时器 + 流式不可用回落
+const STAGES = ["理解问题", "检索相关表和字段", "生成查询计划", "检查查询计划",
+                "生成SQL", "安全校验", "执行", "检查结果", "解释结果", "自动修复"];
+let es = null, timerId = null, settled = false;
+
+function resetSteps() {
+  $("steps").innerHTML = STAGES.map((s) => `<li data-stage="${esc(s)}">${esc(s)}</li>`).join("");
+}
+
+function slotOf(stage) {
+  const s = String(stage || "");
+  return s.includes("自动修复") ? "自动修复" : s;
+}
+
+function markStage(stage, status) {
+  const slot = slotOf(stage);
+  let li = null;
+  for (const c of $("steps").children) { if (c.dataset.stage === slot) { li = c; break; } }
+  if (!li) {  // 引擎新增阶段: 动态追加, 不静默丢弃
+    li = document.createElement("li");
+    li.dataset.stage = slot;
+    li.textContent = slot;
+    $("steps").appendChild(li);
+  }
+  li.className = status === "RUNNING" ? "doing" : status === "OK" ? "done"
+    : status === "WARN" ? "warn" : status === "FAIL" ? "fail" : "";
+}
+
+function startTimer() {
+  stopTimer();
+  const t0 = Date.now();
+  $("timer").textContent = "0.0s";
+  timerId = setInterval(() => {
+    $("timer").textContent = ((Date.now() - t0) / 1000).toFixed(1) + "s";
+  }, 100);
+}
+
+function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
+
+function finish(data) {
+  stopTimer();
+  statusMsg("", false);
+  askBtn.disabled = false;
+  render(data);
+}
+
+// 回落路径: 与流式之前完全一致的 POST /api/ask(流式不可用时不白屏)
+async function askOnce(question, note) {
+  statusMsg(note || "Agent 处理中: 理解 → 检索 → 计划 → 检查 → SQL → 安全校验 → 执行 → 结果 → 解释 …", true);
+  startTimer();
   try {
     const resp = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, clarify: false })
     });
-    const data = await resp.json();
-    statusMsg("", false);
-    render(data);
+    finish(await resp.json());
   } catch (e) {
-    statusMsg("请求失败: " + e, true);
-  } finally {
+    stopTimer();
     askBtn.disabled = false;
+    statusMsg("请求失败: " + e, true);
+  }
+}
+
+// M10: EventSource 消费 /api/ask/stream —— 每个阶段到达即点亮, 结束事件里带完整结果
+function streamAsk(question) {
+  settled = false;
+  const url = "/api/ask/stream?q=" + encodeURIComponent(question) + "&clarify=false";
+  let stream = null;
+  try { stream = new EventSource(url); } catch (e) { askOnce(question); return; }
+  es = stream;
+  // 20s 内没有第一条阶段事件(正常 1~3s 就有) → 认为流式不可用, 回落一次性接口
+  const guard = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    try { stream.close(); } catch (e) {}
+    es = null;
+    askOnce(question, "流式无响应, 已回落到一次性接口 …");
+  }, 20000);
+  stream.onmessage = (msg) => {
+    let ev;
+    try { ev = JSON.parse(msg.data); } catch (e) { return; }
+    if (ev.type === "stage") {
+      markStage(ev.stage, ev.status);
+    } else if (ev.type === "done" && !settled) {
+      settled = true;
+      clearTimeout(guard);
+      try { stream.close(); } catch (e) {}
+      es = null;
+      finish(ev.result || {});
+    }
+  };
+  stream.onerror = () => {
+    clearTimeout(guard);
+    try { stream.close(); } catch (e) {}
+    if (!settled) {
+      settled = true;
+      es = null;
+      askOnce(question, "流式连接断开, 已回落到一次性接口 …");
+    }
+  };
+}
+
+async function ask() {
+  const question = q.value.trim();
+  if (!question) { statusMsg("请先输入问题。", true); return; }
+  askBtn.disabled = true;
+  if (es) { try { es.close(); } catch (e) {} es = null; }
+  resetSteps();
+  statusMsg("Agent 处理中: 理解 → 检索 → 计划 → 检查 → SQL → 安全校验 → 执行 → 结果 → 解释 …", true);
+  startTimer();
+  if (window.EventSource) {
+    streamAsk(question);
+  } else {
+    settled = true;
+    askOnce(question, "浏览器不支持流式, 已回落到一次性接口 …");
   }
 }
 
