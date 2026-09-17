@@ -21,14 +21,19 @@
     python3 text2sql.py "华东地区有多少客户？"
     python3 text2sql.py --db ../customer_marketing_db/marketing.db "2025年哪个月交易金额最高？"
     python3 text2sql.py            # 无参数进入交互模式(支持追问)
+    python3 text2sql.py --sample-rows 0 "..."   # 不把样例数据发给外部 LLM(默认 2 行)
+    python3 text2sql.py --log-level DEBUG "..."  # 调日志级别(默认 INFO)
 
 配置(环境变量或 .env.local):
     LLM_API_KEY   必填, DeepSeek API Key
     LLM_BASE_URL  默认 https://api.deepseek.com
     LLM_MODEL     默认 deepseek-v4-flash
+    TEXT2SQL_LOG_LEVEL  可选, 日志级别(默认 INFO)
+    TEXT2SQL_LOG_DIR    可选, 日志目录(默认 <仓库根>/logs)
 """
 
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -38,6 +43,7 @@ import unicodedata
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 # ================= 配置 =================
@@ -48,6 +54,42 @@ EXPLAIN_MAX_ROWS = 20   # 喂给解释阶段的数据行数上限
 MAX_CLARIFY_ROUNDS = 3  # 交互模式下最多追问轮数
 HERE = Path(__file__).resolve().parent
 
+# ================= 日志(纯标准库, 轮转文件) =================
+# M9: 引擎与演示层各接一个轮转文件日志, 记录各阶段开始/结束/耗时/异常/重试。
+# 红线: 日志只允许记录 长度/行数/表名/阶段名/耗时/异常类型与消息, 绝不写入 API 密钥或数据行内容。
+LOG_DIR = Path(os.environ.get("TEXT2SQL_LOG_DIR") or (HERE.parent / "logs"))
+LOG_FILE = LOG_DIR / "text2sql.log"
+LOG_MAX_BYTES = 5 * 1024 * 1024   # 单文件上限 5MB
+LOG_BACKUP_COUNT = 3              # 轮转保留 3 个历史文件
+
+
+def setup_logging(log_file=None, level: str | int = "INFO", name: str = "text2sql") -> logging.Logger:
+    """初始化轮转文件日志(纯标准库), 返回 logger。
+
+    只挂文件 handler、不挂 StreamHandler —— 保证 CLI/评测/演示的 stdout 输出不被日志污染。
+    level 可传级别名(DEBUG/INFO/WARNING/ERROR)或 logging 数值; 重复调用幂等, 只调整级别。
+    """
+    logger = logging.getLogger(name)
+    if isinstance(level, str):
+        level = getattr(logging, level.upper(), logging.INFO)
+    logger.setLevel(level)
+    target = Path(log_file) if log_file else LOG_FILE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    for h in logger.handlers:
+        if isinstance(h, RotatingFileHandler) and Path(h.baseFilename) == target.resolve():
+            h.setLevel(level)
+            return logger
+    handler = RotatingFileHandler(str(target), maxBytes=LOG_MAX_BYTES,
+                                  backupCount=LOG_BACKUP_COUNT, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
+    handler.setLevel(level)
+    logger.addHandler(handler)
+    logger.propagate = False  # 不外溢到 root logger, 避免日志混进 stdout/stderr
+    return logger
+
+
+LOG = setup_logging(level=os.environ.get("TEXT2SQL_LOG_LEVEL", "INFO"))
+
 STAGE_TITLES = [
     "理解问题", "检索相关表和字段", "生成查询计划", "检查查询计划",
     "生成SQL", "安全校验", "执行", "检查结果", "解释结果",
@@ -55,6 +97,9 @@ STAGE_TITLES = [
 
 # 阶段运行期间可接受的异常类型(LLM 调用/解析/类型错误), 由 run() 统一兜底
 STAGE_ERRORS = (ValueError, RuntimeError, TypeError, AttributeError)
+
+# 口径说明(解释)为空时的兜底文案, 避免"结论/口径说明"栏静默空白(M9)
+FALLBACK_EXPLANATION = "（本次未生成口径说明）"
 
 # 业务背景说明(公共上下文, 拼进各阶段 prompt)
 BUSINESS_DESC = """数据库是银行客户营销库, 业务含义:
@@ -108,18 +153,29 @@ def llm_chat(system: str, user: str, api_key: str, max_tokens: int = 1500) -> st
             with urllib.request.urlopen(req, timeout=90) as resp:
                 data = json.load(resp)
             try:
-                return data["choices"][0]["message"]["content"].strip()
+                content = data["choices"][0]["message"]["content"]
             except (KeyError, IndexError) as e:
                 raise RuntimeError(f"LLM 响应格式异常: {str(data)[:300]}") from e
+            # M9: 空返回是野外最难发现的问题, 必须记 WARNING(不改行为: 仍返回空串)
+            if isinstance(content, str) and not content.strip():
+                LOG.warning("[LLM 空返回] 模型返回空内容: model=%s max_tokens=%d 提示长度=%d",
+                            MODEL, max_tokens, len(user))
+            return content.strip()
         except urllib.error.HTTPError as e:
             if e.code in retryable_http and attempt < max_attempts - 1:
-                time.sleep(1.5 * (2 ** attempt))  # 1.5s / 3s 退避
+                delay = 1.5 * (2 ** attempt)  # 1.5s / 3s 退避
+                LOG.warning("[LLM 重试] HTTP %d, 第 %d/%d 次尝试失败, %.1fs 后退避重试",
+                            e.code, attempt + 1, max_attempts, delay)
+                time.sleep(delay)
                 continue
             body = e.read().decode("utf-8", "replace")[:500]
             raise RuntimeError(f"LLM API HTTP {e.code}: {body}") from e
         except (urllib.error.URLError, TimeoutError) as e:
             if attempt < max_attempts - 1:
-                time.sleep(1.5 * (2 ** attempt))
+                delay = 1.5 * (2 ** attempt)
+                LOG.warning("[LLM 重试] 连接异常 %s, 第 %d/%d 次尝试失败, %.1fs 后退避重试",
+                            type(e).__name__, attempt + 1, max_attempts, delay)
+                time.sleep(delay)
                 continue
             reason = getattr(e, "reason", e)
             raise RuntimeError(f"LLM API 连接失败: {reason}") from e
@@ -154,6 +210,7 @@ def llm_json(system: str, user: str, api_key: str, max_tokens: int = 2000) -> di
             return data
         except ValueError as e:
             if attempt == 0:
+                LOG.warning("[LLM JSON 解析失败] 带错误信息重试一次: %s", str(e)[:160])
                 user = (f"{user}\n\n[系统] 你上次的输出无法解析为合法 JSON 对象(可能被截断): {e}\n"
                         f"上次输出(开头200字符): {raw[:200]}\n"
                         f"请重新输出一个【完整】的 JSON 对象。务必精简内容、不要多余文字、不要 markdown 代码块。")
@@ -163,20 +220,26 @@ def llm_json(system: str, user: str, api_key: str, max_tokens: int = 2000) -> di
 
 
 # ================= 数据库与安全 =================
-def build_schema(db_path: str) -> str:
-    """从 sqlite_master 提取表结构 + 每表 2 行样例数据。"""
+def build_schema(db_path: str, sample_rows: int = 2) -> str:
+    """从 sqlite_master 提取表结构; sample_rows>0 时每表附 N 行样例数据(默认 2, 保持既有行为)。
+
+    M9: sample_rows=0 表示完全不把样例数据拼进 schema(即不发给外部 LLM)。
+    """
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     parts = []
     objects = conn.execute(
         "SELECT type, name, sql FROM sqlite_master "
         "WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY name"
     ).fetchall()
+    sample_n = max(0, int(sample_rows))
     for ttype, name, ddl in objects:
         if ddl:
             parts.append(f"-- {ttype}: {name}\n{ddl};")
+        if sample_n <= 0:  # 关闭样例数据出境
+            continue
         try:
             quoted_name = name.replace('"', '""')
-            sample_cur = conn.execute(f'SELECT * FROM "{quoted_name}" LIMIT 2')
+            sample_cur = conn.execute(f'SELECT * FROM "{quoted_name}" LIMIT {sample_n}')
             rows = sample_cur.fetchall()
             for r in rows:
                 vals = ", ".join(repr(str(v)[:24]) if v is not None else "NULL" for v in r)
@@ -375,8 +438,10 @@ class Trace:
         self.entries: list[TraceEntry] = []
         self._stage_start = 0.0
 
-    def begin_stage(self):
+    def begin_stage(self, title: str = ""):
         self._stage_start = time.time()
+        if title:
+            LOG.info("[阶段开始] %s", title)
 
     def record(self, stage: str, status: str, detail: str = ""):
         self.entries.append(TraceEntry(stage, status, detail,
@@ -504,7 +569,7 @@ EXPLAIN_SYS = """你是数据分析 Agent 的"结论解释器"。根据用户问
 class QueryAgent:
     def __init__(self, db_path: str, api_key: str, verbose: bool = True,
                  biz_context: str | None = None, sql_hints: dict | None = None,
-                 caliber_assertions: list | None = None):
+                 caliber_assertions: list | None = None, sample_rows: int = 2):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
@@ -515,10 +580,14 @@ class QueryAgent:
         # M6: 口径断言(可配置, 内容由调用方注入)。每条: {"id", "when", "must_contain", "must_not_contain", "desc"}
         # when 全部命中问题/计划文本时才检查; 违反则计划检查不通过并触发一次重规划。
         self.caliber_assertions = caliber_assertions or []
-        self.schema = build_schema(db_path)
+        # M9: 样例数据出境开关(默认 2, 与既有行为一致); 0 = 不把任何样例数据拼进 schema
+        self.sample_rows = max(0, int(sample_rows))
         self.meta = get_table_meta(db_path)
+        self.schema = build_schema(db_path, self.sample_rows)
         self.trace = Trace()
         self._stage_idx = 0
+        LOG.info("引擎初始化: 库=%s 表=%s 样例数据行数=%d 模型=%s",
+                 Path(db_path).name, ",".join(sorted(self.meta)), self.sample_rows, MODEL)
 
     # ---- 基础设施 ----
     def _log(self, msg: str):
@@ -532,6 +601,13 @@ class QueryAgent:
         self._log(f"[{self._stage_idx:02d}] {title} [{tag}] ({n:.1f}s)")
         if detail:
             self._log(f"        {detail}")
+        # M9: 阶段结束/耗时写日志。只记阶段名/状态/耗时, 不记 detail(可能含 SQL 片段或结果值)
+        if status == "FAIL":
+            LOG.error("[阶段结束] %s status=%s 耗时=%.2fs", title, status, n)
+        elif status == "WARN":
+            LOG.warning("[阶段结束] %s status=%s 耗时=%.2fs", title, status, n)
+        else:
+            LOG.info("[阶段结束] %s status=%s 耗时=%.2fs", title, status, n)
         self._stage_idx += 1
 
     def _ctx(self) -> str:
@@ -539,7 +615,7 @@ class QueryAgent:
 
     # ---- 1 理解问题 ----
     def _understand(self, question: str) -> Understanding:
-        self.trace.begin_stage()
+        self.trace.begin_stage("理解问题")
         user = (f"{self._ctx()}\n\n用户问题: {question}\n\n"
                 f"请输出 JSON(只输出 JSON, 不要其他文字)。")
         data = llm_json(UNDERSTAND_SYS, user, self.api_key)
@@ -591,7 +667,7 @@ class QueryAgent:
 
     # ---- 2 检索相关表和字段 ----
     def _retrieve(self, u: Understanding) -> Retrieval:
-        self.trace.begin_stage()
+        self.trace.begin_stage("检索相关表和字段")
         user = (f"{self._ctx()}\n\n问题理解:\n"
                 f"- 意图: {u.summary}\n- 指标: {u.metrics}\n- 维度: {u.dimensions}\n"
                 f"- 筛选: {u.filters}\n- 时间范围: {u.time_range or '无'}\n\n"
@@ -623,7 +699,7 @@ class QueryAgent:
 
     # ---- 3 生成查询计划 ----
     def _plan(self, u: Understanding, r: Retrieval) -> dict:
-        self.trace.begin_stage()
+        self.trace.begin_stage("生成查询计划")
         user = (f"{self._ctx()}\n\n问题理解:\n- 意图: {u.summary}\n- 指标: {u.metrics}\n"
                 f"- 维度: {u.dimensions}\n- 筛选: {u.filters}\n- 时间范围: {u.time_range or '无'}\n"
                 f"- 默认假设: {u.assumptions or '无'}\n\n"
@@ -637,7 +713,7 @@ class QueryAgent:
 
     # ---- 4 检查查询计划(程序化) ----
     def _check_plan(self, u: Understanding, r: Retrieval, plan: dict) -> tuple[bool, list[str]]:
-        self.trace.begin_stage()
+        self.trace.begin_stage("检查查询计划")
         issues: list[str] = []
         text = json.dumps(plan, ensure_ascii=False)
 
@@ -755,7 +831,7 @@ class QueryAgent:
 
     # ---- 4b 计划修复(检查不过时, 让 LLM 重规划一次) ----
     def _replan(self, u: Understanding, r: Retrieval, plan: dict, issues: list[str]) -> dict:
-        self.trace.begin_stage()
+        self.trace.begin_stage("生成查询计划")
         user = (f"{self._ctx()}\n\n原计划:\n{json.dumps(plan, ensure_ascii=False, indent=2)}\n\n"
                 f"检查发现以下问题:\n" + "\n".join(f"- {i}" for i in issues) +
                 f"\n\n请修正计划, 输出新的查询计划 JSON(只输出 JSON)。")
@@ -831,7 +907,7 @@ class QueryAgent:
 
     def _generate_sql(self, u: Understanding, r: Retrieval, plan: dict,
                       check_issues: list[str]) -> str:
-        self.trace.begin_stage()
+        self.trace.begin_stage("生成SQL")
         user = (f"{self._ctx()}\n\n问题: {u.summary}\n"
                 f"指标: {u.metrics} 维度: {u.dimensions}\n筛选: {u.filters}\n"
                 f"时间范围: {u.time_range or '无'}\n默认假设: {u.assumptions or '无'}\n\n"
@@ -867,6 +943,8 @@ class QueryAgent:
         # M6: 声明列缺失 -> 带错误反馈重写一次
         missing = [c for c in declared if c not in sql]
         if missing:
+            LOG.warning("[生成SQL] 输出列缺失 %s(共声明 %d 列), 带反馈重写一次",
+                        missing, len(declared))
             retry_user = (user + f"\n\n[系统] 刚生成的 SQL 输出列缺失: {missing}。"
                           f"请重写完整 SQL, 必须让这些列出现在 SELECT 输出中(使用相同中文别名)。"
                           f"只输出 SQL 本身。")
@@ -878,7 +956,7 @@ class QueryAgent:
 
     # ---- 6 安全校验 ----
     def _validate(self, sql: str) -> str:
-        self.trace.begin_stage()
+        self.trace.begin_stage("安全校验")
         cleaned = validate_sql(sql)
         self._stage("安全校验", "OK",
                     "单条只读语句 SELECT/WITH/EXPLAIN, 注释已剥离, 拒绝多语句")
@@ -886,8 +964,11 @@ class QueryAgent:
 
     # ---- 7 执行 ----
     def _execute(self, sql: str):
-        self.trace.begin_stage()
+        self.trace.begin_stage("执行")
         headers, rows, truncated = run_query(self.db_path, sql)
+        # M9: 只记 SQL 长度/结果行数/列数, 绝不记 SQL 正文与数据行内容
+        LOG.info("[执行] SQL 长度=%d 结果行数=%d 列数=%d 截断=%s",
+                 len(sql), len(rows), len(headers), truncated)
         self._stage("执行", "OK",
                     f"只读执行成功: {len(rows)} 行" + ("(已截断)" if truncated else ""))
         return headers, rows, truncated
@@ -895,9 +976,10 @@ class QueryAgent:
     # ---- 7b SQL 修复一次(执行失败与结果列缺失共用同一修复机制) ----
     def _repair_sql(self, sql: str, problem: object, u: Understanding, plan: dict,
                     stage_title: str = "执行") -> str:
-        self.trace.begin_stage()
+        self.trace.begin_stage(f"{stage_title}(自动修复)")
         reason = str(problem)
         self._log(f"        [自动修复] {reason}")
+        LOG.warning("[自动修复] 阶段=%s 原因=%s", stage_title, reason[:160])
         user = (f"数据库结构:\n{self.schema}\n\n"
                 f"问题: {u.summary}\n查询计划:\n{json.dumps(plan, ensure_ascii=False)}\n\n"
                 f"SQL 存在问题:\n{sql}\n\n问题描述:\n{reason}\n\n"
@@ -925,7 +1007,7 @@ class QueryAgent:
 
     def _check_result(self, headers: list, rows: list, truncated: bool,
                       plan: dict | None = None) -> tuple[list[str], list[str]]:
-        self.trace.begin_stage()
+        self.trace.begin_stage("检查结果")
         notes = []
         missing = []
         if not rows:
@@ -946,7 +1028,7 @@ class QueryAgent:
     # ---- 9 解释结果 ----
     def _explain(self, u: Understanding, sql: str, headers: list,
                  rows: list, truncated: bool, notes: list[str]) -> str:
-        self.trace.begin_stage()
+        self.trace.begin_stage("解释结果")
         if rows:
             data_lines = [", ".join(f"{h}={str(v)[:24]}" for h, v in zip(headers, r))
                           for r in rows[:EXPLAIN_MAX_ROWS]]
@@ -961,6 +1043,10 @@ class QueryAgent:
                 f"默认假设: {u.assumptions if u.assumptions else '无'}\n\n"
                 f"请用自然语言解释结论。")
         explanation = llm_chat(EXPLAIN_SYS, user, self.api_key, max_tokens=800)
+        # M9 静默兜底: 口径说明为空时给兜底文案并记 WARNING(其余阶段维持报错优先, 不猜)
+        if not (explanation or "").strip():
+            LOG.warning("[解释结果] 口径说明为空, 使用兜底文案: %s", FALLBACK_EXPLANATION)
+            explanation = FALLBACK_EXPLANATION
         self._stage("解释结果", "OK", explanation[:120] + ("…" if len(explanation) > 120 else ""))
         return explanation
 
@@ -971,6 +1057,7 @@ class QueryAgent:
         except STAGE_ERRORS as e:
             self.trace.begin_stage()
             self._stage(title, "FAIL", f"阶段异常: {e}")
+            LOG.error("[阶段异常] %s 类型=%s 消息=%s", title, type(e).__name__, str(e)[:160])
             raise
 
     # ---- 主状态机 ----
@@ -978,6 +1065,9 @@ class QueryAgent:
         self._stage_idx = 1
         self.trace = Trace()
         ans = Answer(question=question)
+        # M9: 只记问题长度与追问模式, 不记问题正文(防止问题里夹带客户号等数据)
+        LOG.info("[问答开始] 问题长度=%d 追问模式=%s 样例行数=%d",
+                 len(question), clarify, self.sample_rows)
 
         # 1 理解
         try:
@@ -1148,6 +1238,23 @@ def main():
         i = args.index("--db")
         db_path = args[i + 1]
         del args[i:i + 2]
+    sample_rows = 2  # M9: 默认 2 行, 与既有行为一致(不得改默认行为)
+    if "--sample-rows" in args:
+        i = args.index("--sample-rows")
+        raw = args[i + 1] if i + 1 < len(args) else ""
+        try:
+            sample_rows = int(raw)
+        except ValueError:
+            print(f"[错误] --sample-rows 需要非负整数(0 = 不发送样例数据), 收到: {raw!r}", file=sys.stderr)
+            sys.exit(2)
+        if sample_rows < 0:
+            print("[错误] --sample-rows 不能为负数(0 = 不发送样例数据)", file=sys.stderr)
+            sys.exit(2)
+        del args[i:i + 2]
+    if "--log-level" in args:
+        i = args.index("--log-level")
+        setup_logging(level=args[i + 1] if i + 1 < len(args) else "INFO")
+        del args[i:i + 2]
     db_path = str((HERE / db_path).resolve())
 
     if not Path(db_path).exists():
@@ -1155,8 +1262,9 @@ def main():
         sys.exit(1)
 
     api_key = load_api_key()
-    agent = QueryAgent(db_path, api_key)
-    print(f"智能问数 Agent 就绪: 模型={MODEL} 库={Path(db_path).name}\n")
+    agent = QueryAgent(db_path, api_key, sample_rows=sample_rows)
+    print(f"智能问数 Agent 就绪: 模型={MODEL} 库={Path(db_path).name} "
+          f"样例数据行数={sample_rows} 日志={LOG_FILE}\n")
 
     questions = args if args else None
 

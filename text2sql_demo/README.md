@@ -79,3 +79,14 @@ python ui_smoke.py                     # UI 全流程自测(5+1 问)
 - **库只读**:引擎 mode=ro + PRAGMA query_only,评测/演示不得写库。
 - **企业库重建**:由数据集目录 8 张 CSV 载入 SQLite(数值 REAL/日期与 ID TEXT),详见 docs/数据说明.md。
 - **为什么复杂题还有 4 题不达标**:C02/C07 为长上下文口径遵守度瓶颈 + 科创板存托凭证口径疑点,提升路径见 docs/技术报告.md §8。
+
+## M9：日志与数据出境开关
+
+- **日志**: 纯标准库 `logging` + `RotatingFileHandler`, 默认写 `<仓库根>/logs/text2sql.log`(5MB × 3)。
+  记录各阶段的开始/结束/耗时、异常、重试, 以及 **LLM 返回空内容时的 WARNING**(野外排查空返回的唯一手段)。
+  级别用 `--log-level DEBUG/INFO/WARNING/ERROR`(或 `TEXT2SQL_LOG_LEVEL`)调整, 目录可用 `TEXT2SQL_LOG_DIR` 覆盖。
+  日志只记长度/行数/表名/阶段名, **不写 API 密钥与数据行内容**。
+- **样例数据出境开关**: `--sample-rows N`(默认 2, 不变更既有行为); `--sample-rows 0` = 完全不把样例数据
+  拼进 schema, 即不发给外部 LLM。演示层 `demo/server.py` 有同名参数并在 `/api/health` 回显。
+- **静默兜底**: 解释(口径说明)阶段模型返回空串时不再静默空白, 改为兜底文案「（本次未生成口径说明）」并记 WARNING;
+  其余阶段维持报错优先, 不猜。
