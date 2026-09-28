@@ -23,7 +23,7 @@ sys.path.insert(0, str(TEXT2SQL_DIR))
 sys.path.insert(0, str(HERE))
 import text2sql  # noqa: E402
 from text2sql import QueryAgent, load_api_key, run_query  # noqa: E402
-from run_eval import ENTERPRISE_BIZ  # noqa: E402
+from run_eval import ENTERPRISE_BIZ, SENSITIVE_COLUMNS  # noqa: E402
 
 
 def run_real(case, agent):
@@ -58,7 +58,8 @@ def run_real(case, agent):
 
 def run_unit(case, api_key):
     if case["check"] == "repair_once_ok":
-        agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ)
+        agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
+                           sensitive_columns=SENSITIVE_COLUMNS)
         calls = []
         agent._understand = lambda q: __import__("text2sql").Understanding(
             answerable=True, summary=case["input"], missing_required=[])
@@ -86,7 +87,8 @@ def run_unit(case, api_key):
         return {"ok": ok, "detail": f"calls={calls} sql={ans.sql}", "elapsed_ms": 0, "error": ans.error or ""}
 
     if case["check"] == "repair_then_fail":
-        agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ)
+        agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
+                           sensitive_columns=SENSITIVE_COLUMNS)
         agent._understand = lambda q: __import__("text2sql").Understanding(
             answerable=True, summary=case["input"], missing_required=[])
         agent._retrieve = lambda u: __import__("text2sql").Retrieval(
@@ -115,7 +117,8 @@ def run_unit(case, api_key):
         return {"ok": ok, "detail": f"truncated={truncated} rows={len(rows)}", "elapsed_ms": 0, "error": ""}
 
     if case["check"] == "llm_fault_handled":
-        agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ)
+        agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
+                           sensitive_columns=SENSITIVE_COLUMNS)
         orig = text2sql.llm_chat
 
         def boom(*a, **k):
@@ -135,7 +138,8 @@ def run_unit(case, api_key):
 def main():
     data = json.loads(EDGE.read_text(encoding="utf-8"))
     api_key = load_api_key()
-    agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ)
+    agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
+                       sensitive_columns=SENSITIVE_COLUMNS)
     # 边界用例真实 LLM 统一用更稳的 deepseek-chat(避免 flash 空返回干扰 E3/E7 判定)
     text2sql.MODEL = os.environ.get("LLM_MODEL_EDGE", "deepseek-chat").strip()
     results = []

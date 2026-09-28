@@ -4,7 +4,10 @@
 
 启动:
     python demo/server.py --db <库路径> [--biz-context demo/enterprise_biz.json] [--port 8000]
-                          [--sample-rows 2] [--log-level INFO]
+                          [--sample-rows 2] [--log-level INFO] [--offline]
+
+--offline: 离线演示模式 —— 没有 LLM_API_KEY 也能起服务(界面与 /api/health 可用),
+           提问会立即返回"未配置密钥"的明确错误, 不发起任何真实网络调用。
 
 --sample-rows 控制每表拼进 schema 的样例数据行数: 默认 2(与引擎一致); 0 = 完全不把样例数据
 发给外部 LLM。/api/health 会回显实际生效值。
@@ -76,13 +79,18 @@ def resolve_path(raw: str, base: Path) -> Path:
 
 
 def load_biz_context_file(path: str | None):
-    """从 JSON 文件注入业务口径; 不传则走引擎默认语义。"""
+    """从 JSON 文件注入业务口径; 不传则走引擎默认语义。
+
+    返回 (biz_context, sql_hints, caliber_assertions, sensitive_columns)。
+    sensitive_columns 由注入侧给出库内真实列名, 引擎只认机制(不硬编码券商列名)。
+    """
     if not path:
-        return None, None, None
+        return None, None, None, None
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     return (data.get("biz_context"),
             data.get("sql_hints") or {},
-            data.get("caliber_assertions") or [])
+            data.get("caliber_assertions") or [],
+            data.get("sensitive_columns") or [])
 
 
 def matched_assertions(question: str, plan: dict | None, rules: list) -> list:
@@ -254,6 +262,7 @@ class Handler(BaseHTTPRequestHandler):
                 "biz_context_file": self.server.biz_context_file,
                 "readonly": True,
                 "sample_rows": self.server.agent.sample_rows,
+                "sensitive_columns": self.server.agent.sensitive_columns,
             })
         if parsed.path in ("/api/ask", "/api/ask/stream"):
             qs = parse_qs(parsed.query)
@@ -296,6 +305,8 @@ def main(argv=None):
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--sample-rows", type=int, default=2,
                     help="每表拼进 schema 的样例数据行数(默认 2; 0 = 完全不把样例数据发给外部 LLM)")
+    ap.add_argument("--offline", action="store_true",
+                    help="离线演示模式: 无 LLM_API_KEY 也能起服务(仅界面/健康检查; 提问立即报错)")
     ap.add_argument("--log-level", default=os.environ.get("TEXT2SQL_LOG_LEVEL", "INFO"),
                     help="日志级别 DEBUG/INFO/WARNING/ERROR(默认 INFO)")
     args = ap.parse_args(argv)
@@ -313,13 +324,26 @@ def main(argv=None):
     biz_file = None
     if args.biz_context:
         biz_file = str(resolve_path(args.biz_context, ROOT).resolve())
-    biz_context, sql_hints, caliber_assertions = load_biz_context_file(biz_file)
+    biz_context, sql_hints, caliber_assertions, sensitive_columns = load_biz_context_file(biz_file)
 
-    api_key = text2sql.load_api_key()
+    try:
+        api_key = text2sql.load_api_key()
+    except SystemExit:
+        if not args.offline:
+            raise
+        api_key = "offline-demo-key"
+        # 离线演示: 不发起任何真实 LLM 调用, 提问时立即返回明确错误(不联网、不重试)。
+        def _offline_llm(*_a, **_k):
+            raise RuntimeError("离线演示模式未配置 LLM_API_KEY, 无法生成 SQL; "
+                               "请设置 LLM_API_KEY 后重启服务。")
+        text2sql.llm_chat = _offline_llm
+        text2sql.llm_json = _offline_llm
+        print("[离线演示] 未配置 LLM_API_KEY: 仅提供界面与 /api/health, 提问会明确报错。", flush=True)
     agent = DemoQueryAgent(str(db_path), api_key, verbose=False,
                            biz_context=biz_context,
                            sql_hints=sql_hints,
                            caliber_assertions=caliber_assertions,
+                           sensitive_columns=sensitive_columns,
                            sample_rows=args.sample_rows)
 
     index_html = (HERE / "index.html").read_bytes()
@@ -336,6 +360,7 @@ def main(argv=None):
     print(f"模型: {text2sql.MODEL}", flush=True)
     print(f"业务口径: {biz_file or '未注入(引擎默认语义)'}", flush=True)
     print(f"样例数据行数: {args.sample_rows}(0 = 不把样例数据发给外部 LLM)", flush=True)
+    print(f"受限字段: {sensitive_columns or '无'}(样例值不外发/查询结果掩码)", flush=True)
     print(f"日志: {ROOT / 'logs' / 'demo_server.log'}(级别 {args.log_level})", flush=True)
     print("按 Ctrl+C 停止。", flush=True)
     LOG.info("演示服务启动: 库=%s 端口=%d 模型=%s 样例数据行数=%d 业务口径=%s",

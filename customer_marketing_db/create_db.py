@@ -16,8 +16,10 @@
 import random
 import sqlite3
 from datetime import date, timedelta
+from pathlib import Path
 
-DB_PATH = "marketing.db"
+# 建库输出固定落在本文件所在目录(customer_marketing_db/marketing.db), 不随 cwd 漂移。
+DB_PATH = str(Path(__file__).resolve().parent / "marketing.db")
 rng = random.Random(42)  # 固定种子，数据可复现
 
 # ---------------- 虚构数据素材 ----------------

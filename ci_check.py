@@ -11,7 +11,7 @@
 
 退出码: 全部通过 = 0; 任一 FAIL = 1。
 
-7 项检查与 M11 工作流步骤一一对应:
+8 项检查与 M11 工作流步骤一一对应:
     1 syntax       语法编译            所有 *.py 逐个 compile()
     2 deps         导入与无第三方包断言  加载引擎与演示层后 sys.modules 只多出标准库
     3 decouple     引擎解耦断言        引擎/演示层不出现券商域词(词表 + enterprise_biz.json 抽取)
@@ -19,6 +19,7 @@
     5 secret       密钥泄露防线        全仓库文本文件 grep sk-[A-Za-z0-9]{20,}(排除未入库的 .env.local)
     6 synth-smoke  合成库端到端冒烟     sqlite3 现场建 3 张小表 + 桩 LLM 驱动引擎走完整链路
     7 sse          SSE 接口契约冒烟      用合成库起 demo/server.py, 断言 /api/health 200 与阶段/done 事件
+    8 privacy      受限字段屏蔽断言      合成库 + 注入敏感列: 样例不外发/SQL 直引与别名拦截/结果掩码, 并含负对照
 
 为什么这些能进 CI: 它们都不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网。
 评测(run_eval.py)与边界用例(run_edge_cases.py)刻意不在 CI 内 —— 见 README 的"CI / 自动校验"一节。
@@ -39,6 +40,13 @@ import time
 import traceback
 from pathlib import Path
 from urllib.parse import quote
+
+# ---------------- 运行环境守卫 ----------------
+# 本文件与引擎都用到 PEP 604 注解(如 str | None), 需要 Python 3.10+。
+if sys.version_info < (3, 10):
+    print(f"[环境错误] ci_check 需要 Python 3.10 及以上, 当前为 {sys.version.split()[0]}。"
+          "请用 python3.11 ci_check.py 重试。")
+    raise SystemExit(2)
 
 # ---------------- 仓库路径(全部按本文件位置解析, 不用盘符/不用 logs 这类与 cwd 绑定的写法) ----------------
 HERE = Path(__file__).resolve().parent
@@ -207,6 +215,8 @@ def extract_biz_tokens():
                     tokens.add(v)
     for key in (biz.get("sql_hints") or {}):
         tokens.add(key)
+    for col in (biz.get("sensitive_columns") or []):
+        tokens.add(str(col))
     for v in (biz.get("sql_hints") or {}).values():
         for m in re.findall(r"\b[a-z_][a-z0-9_]{3,}\b", str(v)):
             tokens.add(m)
@@ -548,6 +558,67 @@ def _get(port: int, path: str, timeout: float = 10.0):
 
 # ---------------- 调度 ----------------
 
+def check_privacy():
+    """受限字段四层屏蔽: 样例数据 / SQL 直引 / SQL 别名 / 结果列; 并带负对照。"""
+    mod = get_engine()
+    with tempfile.TemporaryDirectory(prefix="ci_privacy_") as tmp:
+        db = Path(tmp) / "privacy.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            "CREATE TABLE ads_cust_info_d(pty_id TEXT, sor_pty_id TEXT, name TEXT, cust_age INTEGER);"
+            "INSERT INTO ads_cust_info_d VALUES('C0001','SOR-SECRET-0001','张***',35);"
+            "INSERT INTO ads_cust_info_d VALUES('C0002','SOR-SECRET-0002','李***',41);")
+        conn.commit()
+        conn.close()
+        secret = "SOR-SECRET-0001"
+        problems = []
+        # (1) 注入受限字段 -> 样例不含原值, 含占位
+        schema = mod.build_schema(str(db), sample_rows=2, sensitive_columns=["sor_pty_id"])
+        if secret in schema:
+            problems.append("build_schema 样例仍含受限字段原值")
+        if repr(mod.SENSITIVE_MASK) not in schema:
+            problems.append("build_schema 未对受限字段打码")
+        # (2) 负对照: 不注入时原值确实出现, 证明上面是屏蔽在起作用
+        raw_schema = mod.build_schema(str(db), sample_rows=2)
+        if secret not in raw_schema:
+            problems.append("负对照失败: 未注入时样例也看不到原值, 检查无效")
+        agent = mod.QueryAgent(str(db), "ci-stub-key", verbose=False, sample_rows=2,
+                               sensitive_columns=["sor_pty_id"])
+        if secret in agent.schema:
+            problems.append("QueryAgent.schema 仍含受限字段原值")
+        # (3) SQL 直引 / 别名 / 大小写都必须被拒
+        for sql in ("SELECT sor_pty_id FROM ads_cust_info_d",
+                    "SELECT sor_pty_id AS 客户号 FROM ads_cust_info_d",
+                    "select SOR_PTY_ID from ads_cust_info_d"):
+            try:
+                agent._validate(sql)
+                problems.append(f"受限字段未被拦截: {sql}")
+            except ValueError:
+                pass
+        # (3b) 字符串字面量中的同名词不得误伤
+        try:
+            agent._validate("SELECT pty_id FROM ads_cust_info_d WHERE name = 'sor_pty_id'")
+        except ValueError as e:
+            problems.append(f"字符串字面量被误伤: {e}")
+        # (4) 结果层: SELECT * 时受限列被掩码
+        headers, rows, _ = agent._execute("SELECT * FROM ads_cust_info_d")
+        idx = headers.index("sor_pty_id")
+        if any(r[idx] != mod.SENSITIVE_MASK for r in rows):
+            problems.append("结果层未对受限字段掩码")
+        # (5) 不含受限字段的正常查询不受影响
+        try:
+            h2, rows2, _ = agent._execute("SELECT pty_id, cust_age FROM ads_cust_info_d")
+            if h2 != ["pty_id", "cust_age"] or [tuple(r) for r in rows2] != [("C0001", 35), ("C0002", 41)]:
+                problems.append("正常查询结果被改变")
+        except Exception as e:
+            problems.append(f"正常查询被误伤: {type(e).__name__}: {e}")
+        if problems:
+            for pr in problems:
+                print(f"      {pr}")
+            return False, "受限字段屏蔽失败: " + "; ".join(problems)
+    return True, "受限字段四层(样例/SQL直引/SQL别名/结果)屏蔽通过, 负对照有效"
+
+
 CHECKS = [
     ("syntax", "语法编译", check_syntax),
     ("deps", "导入与无第三方包断言", check_deps),
@@ -556,6 +627,7 @@ CHECKS = [
     ("secret", "密钥泄露防线", check_secret),
     ("synth-smoke", "合成库 + 桩 LLM 端到端冒烟", check_synth_smoke),
     ("sse", "SSE 接口契约冒烟", check_sse),
+    ("privacy", "受限字段屏蔽断言", check_privacy),
 ]
 
 

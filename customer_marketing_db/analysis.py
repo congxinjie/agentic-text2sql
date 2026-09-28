@@ -7,8 +7,10 @@
 
 import sqlite3
 import unicodedata
+from pathlib import Path
 
-DB_PATH = "marketing.db"
+# 与 create_db.py 同源: 固定读本目录下的 marketing.db, 不随 cwd 漂移。
+DB_PATH = str(Path(__file__).resolve().parent / "marketing.db")
 
 QUERIES = [
     ("1. 客户年龄段分布", """

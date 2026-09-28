@@ -37,11 +37,11 @@
 | # | 命题成果形式 | 本仓库位置 | 说明 |
 |---|---|---|---|
 | 1 | 可运行的 AI 智能取数 Agent 原型系统 | [`text2sql_demo/text2sql.py`](text2sql_demo/text2sql.py)(CLI)、[`demo/server.py`](demo/server.py)(本地 Web,含 SSE 等待期反馈)、[`text2sql_demo/app.py`](text2sql_demo/app.py)(Streamlit 备选入口) | 三个入口都能跑;启动命令见「跑起来」与 [`text2sql_demo/README.md`](text2sql_demo/README.md) |
-| 2 | 源代码 | 仓库根(引擎 [`text2sql_demo/text2sql.py`](text2sql_demo/text2sql.py) 1355 行 9 阶段状态机 + [`benchmark/`](benchmark/) 评测 harness + [`demo/`](demo/) 演示层) | 关键模块中文注释;零第三方依赖(CI 机器证明) |
-| 3 | 运行说明 | [README.md](README.md)(本文件:「跑起来」「如何启动演示」「CI / 自动校验」)+ [`text2sql_demo/README.md`](text2sql_demo/README.md)(环境/部署/配置/评测复现/FAQ) | 演示模式无需外部账号;真实调用读本地 `.env.local` |
+| 2 | 源代码 | 仓库根(引擎 [`text2sql_demo/text2sql.py`](text2sql_demo/text2sql.py) 1420 行 9 阶段状态机 + [`benchmark/`](benchmark/) 评测 harness + [`demo/`](demo/) 演示层) | 关键模块中文注释;零第三方依赖(CI 机器证明) |
+| 3 | 运行说明 | [README.md](README.md)(本文件:「跑起来」「如何启动演示」「CI / 自动校验」)+ [`text2sql_demo/README.md`](text2sql_demo/README.md)(环境/部署/配置/评测复现/FAQ) | 演示层可 `--offline` 无密钥起界面冒烟;真实问答读本地 `.env.local`(不入库) |
 | 4 | 元数据组织方案 | [`docs/元数据组织方案.md`](docs/元数据组织方案.md) | 表/字段/指标/维度/口径字典的组织格式与注入方式 |
 | 5 | 工具调用方案 | [`docs/工具调用方案.md`](docs/工具调用方案.md) | 工具清单、输入输出契约、调用顺序与依赖、重试与兜底、域知识切分 |
-| 6 | 安全围栏设计说明 | [`docs/安全设计说明.md`](docs/安全设计说明.md) | §2 只读三保险;§3「命题四类合法性 ↔ 代码行号」对照表 |
+| 6 | 安全围栏设计说明 | [`docs/安全设计说明.md`](docs/安全设计说明.md) | §2 只读三保险;§3「命题四类合法性 ↔ 代码行号」;§7 受限字段列级屏蔽 |
 | 7 | 自然语言问数样例 | [`benchmark/benchmark.json`](benchmark/benchmark.json)(40 问,人工标注标准 SQL 与口径)、[`benchmark/edge_cases.json`](benchmark/edge_cases.json)(E1–E9 边界)、[`docs/测试与案例.md`](docs/测试与案例.md)(简/中/复各 ≥3 例真实运行) | 样例均可复跑 |
 | 8 | 生成结果及准确率评估 | [`docs/评测报告-基线.md`](docs/评测报告-基线.md) + [`benchmark/runs/`](benchmark/runs/)(逐题明细 JSON)+ [`benchmark/run_eval.py`](benchmark/run_eval.py)(runner)+ [`benchmark/run_edge_cases.py`](benchmark/run_edge_cases.py) | 数字全部来自真实运行,口径见 [`docs/评测口径定义.md`](docs/评测口径定义.md) |
 
@@ -78,6 +78,9 @@ python demo/server.py --db customer_marketing_db/marketing.db --port 8000
 # 项目主库: 券商企业口径经 JSON 文件注入(演示层不内嵌口径)
 python demo/server.py --db "Agentic智能问数在客户营销场景的应用数据集/enterprise.db" \
                       --biz-context demo/enterprise_biz.json --port 8000
+
+# 无密钥起界面(离线冒烟): 只提供界面与 /api/health, 提问立即返回明确错误, 不发起网络调用
+python demo/server.py --db customer_marketing_db/marketing.db --offline
 ```
 
 浏览器打开 `http://127.0.0.1:8000`，一次问答即可看到：结构化计划 / SQL / 结果表格 /
@@ -110,7 +113,7 @@ python3 ci_check.py        # 逐项打印 OK/FAIL；任一 FAIL 退出码非 0
 
 CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-latest` + 系统自带 `python3`，
 **不做任何第三方包安装**（零 pip、零 requirements）、**不调用真实 LLM**（一律桩）、工作流里无任何密钥，
-超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 7 项（`ci_check.py` 的检查项 id 一一对应）：
+超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 8 项（`ci_check.py` 的检查项 id 一一对应）：
 
 | # | 检查（`python3 ci_check.py --only <id>`） | 内容 |
 |---|---|---|
@@ -121,6 +124,7 @@ CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-la
 | 5 | `secret` | 全仓库文本文件 grep `sk-[A-Za-z0-9]{20,}`（排除永不入库的 `.env.local` / `.git` / 日志） |
 | 6 | `synth-smoke` | `sqlite3` 现场建 3 张小表 + 桩 LLM 驱动引擎走完整链路（理解→检索→计划→检查→SQL→安全校验→执行→检查结果→解释），**零 API 调用** |
 | 7 | `sse` | 用合成库起 `demo/server.py`：`/api/health` 返回 200，`/api/ask/stream` 流里既有阶段事件也有 `done` 事件（与 `POST /api/ask` 同源字段） |
+| 8 | `privacy` | 合成库 + 注入受限字段：断言样例数据不外发、SQL 直引/别名引用被拦截、结果列掩码，并带"不注入则原值可见"的负对照 |
 
 **刻意不跑什么（边界写清楚）**：`benchmark/run_eval.py`（40 问全量评测）与 `benchmark/run_edge_cases.py`
 （E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，大表不入库，clone 后无法重建）
@@ -132,7 +136,7 @@ CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-la
 **本地跑同一套检查**（Windows / Linux 同一条命令；脚本用自身文件位置解析仓库根，与 cwd、盘符、系统无关）：
 
 ```bash
-python3 ci_check.py                  # 7 项全跑，全绿退出码 0
+python3 ci_check.py                  # 8 项全跑，全绿退出码 0
 python3 ci_check.py --only judge     # 只跑某一项（与 CI 的单步完全一致）
 python3 ci_check.py --only deps,judge
 python3 ci_check.py --list           # 列出检查项 id
@@ -167,7 +171,7 @@ python3 ci_check.py --list           # 列出检查项 id
 
 ## 安全与合规
 
-只读三保险；姓名与经纪客户号脱敏不展示；不使用未授权数据；开源组件清单一并文档化。
+只读三保险；姓名/营业部等由数据源预脱敏；经纪客户号 `sor_pty_id` 经 `sensitive_columns` 注入后**样例数据不外发、SQL 引用被拦截、结果列掩码**(代码级,非仅提示)；不使用未授权数据；开源组件清单一并文档化。
 详见 [`docs/安全设计说明.md`](docs/安全设计说明.md)。
 
 ## 数据与合规
@@ -181,6 +185,7 @@ python3 ci_check.py --list           # 列出检查项 id
 | 用户问题 | 你输入的自然语言问题(交互模式下的补充说明也算) | 不能(输入本身就是它) |
 
 此外, 解释阶段会把**查询结果的前 20 行**(`EXPLAIN_MAX_ROWS`)发给模型用于生成结论文字。
+受限字段(如 `sor_pty_id`)即使落在样例行里, 也会先被 `***` 占位再拼进 prompt;查询结果同列也会被掩码。真实数据请优先 `--sample-rows 0`。
 
 **怎么关掉样例数据出境**(引擎与演示层同一个参数, 默认值都是 2, 保持既有评测口径不变):
 
@@ -195,8 +200,8 @@ python demo/server.py --db <库> --sample-rows 0 --port 8000        # 演示层:
 
 **本项目的数据是虚构的**: `customer_marketing_db/marketing.db` 由 `create_db.py` 用固定种子生成;
 `enterprise.db` 由主办方提供的券商营销样例 CSV 经 `benchmark/build_db.py` 重建 —— 两者都是比赛虚构数据,
-姓名与经纪客户号在文档与演示输出中一律脱敏或不展示(见 [`docs/数据说明.md`](docs/数据说明.md)、
-[`docs/安全设计说明.md`](docs/安全设计说明.md))。
+姓名/营业部名称由数据源预脱敏;经纪客户号 `sor_pty_id` 由引擎按注入的 `sensitive_columns` 做样例打码、
+SQL 引用拦截与结果列掩码(见 [`docs/数据说明.md`](docs/数据说明.md)、[`docs/安全设计说明.md`](docs/安全设计说明.md))。
 
 **接真实生产库时的建议**: ① 一律 `--sample-rows 0`, 不让真实客户数据行进 prompt;
 ② 或把 `LLM_BASE_URL` 指向**私有化/本地部署模型**, 数据不出企业边界;

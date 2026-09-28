@@ -10,7 +10,7 @@
 #   2. **不联网调用 LLM** —— 端到端冒烟与 SSE 契约都用桩 LLM 驱动引擎(零 API 调用);
 #   3. 本文件与整个仓库**不出现任何密钥**(密钥只在本地 .env.local, 永不入库)。
 #
-# 七步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
+# 八步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
 name: CI
 
 on:
@@ -70,3 +70,7 @@ jobs:
       # 步骤 ⑦SSE 接口契约冒烟(/api/health 200 + 流里有阶段事件与 done 事件)
       - name: ⑦ SSE 接口契约冒烟
         run: python3 ci_check.py --only sse
+
+      # 步骤 ⑧受限字段屏蔽断言(样例不外发 + SQL 拦截 + 结果掩码, 含负对照)
+      - name: ⑧ 受限字段屏蔽断言
+        run: python3 ci_check.py --only privacy

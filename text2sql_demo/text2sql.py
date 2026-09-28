@@ -46,12 +46,22 @@ from dataclasses import dataclass, field
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+# ================= 运行环境守卫 =================
+# 本模块在注解中使用了 PEP 604 的 `X | Y` 语法, 需要 Python 3.10+。
+# 放在配置之前执行, 让旧解释器得到明确提示, 而不是裸的 "unsupported operand type(s) for |"。
+if sys.version_info < (3, 10):
+    raise SystemExit(
+        f"[环境错误] 本项目需要 Python 3.10 及以上, 当前为 {sys.version.split()[0]}。\n"
+        "请改用 python3.10+ / python3.11+ 运行(例如: python3.11 text2sql.py \"问题\")。"
+    )
+
 # ================= 配置 =================
 BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
 MODEL = os.environ.get("LLM_MODEL", "deepseek-v4-flash")
 MAX_ROWS = 100          # 展示上限
 EXPLAIN_MAX_ROWS = 20   # 喂给解释阶段的数据行数上限
 MAX_CLARIFY_ROUNDS = 3  # 交互模式下最多追问轮数
+SENSITIVE_MASK = "***"   # 受限字段在样例/结果中的占位符
 HERE = Path(__file__).resolve().parent
 
 # ================= 日志(纯标准库, 轮转文件) =================
@@ -220,11 +230,15 @@ def llm_json(system: str, user: str, api_key: str, max_tokens: int = 2000) -> di
 
 
 # ================= 数据库与安全 =================
-def build_schema(db_path: str, sample_rows: int = 2) -> str:
+def build_schema(db_path: str, sample_rows: int = 2,
+                 sensitive_columns: list | None = None) -> str:
     """从 sqlite_master 提取表结构; sample_rows>0 时每表附 N 行样例数据(默认 2, 保持既有行为)。
 
     M9: sample_rows=0 表示完全不把样例数据拼进 schema(即不发给外部 LLM)。
+    隐私: sensitive_columns 中的列(库内真实列名, 由调用方注入)样例行一律以 *** 占位,
+          这些列的真实值绝不进入 schema, 也就不会发往外部 LLM。
     """
+    sensitive = {str(c).strip().lower() for c in (sensitive_columns or []) if str(c).strip()}
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     parts = []
     objects = conn.execute(
@@ -241,9 +255,17 @@ def build_schema(db_path: str, sample_rows: int = 2) -> str:
             quoted_name = name.replace('"', '""')
             sample_cur = conn.execute(f'SELECT * FROM "{quoted_name}" LIMIT {sample_n}')
             rows = sample_cur.fetchall()
+            col_names = [d[0] for d in (sample_cur.description or ())]
             for r in rows:
-                vals = ", ".join(repr(str(v)[:24]) if v is not None else "NULL" for v in r)
-                parts.append(f"-- 样例: ({vals})")
+                vals = []
+                for col, v in zip(col_names, r):
+                    if col.lower() in sensitive:
+                        vals.append(repr(SENSITIVE_MASK))  # 受限字段: 样例值不外发
+                    elif v is None:
+                        vals.append("NULL")
+                    else:
+                        vals.append(repr(str(v)[:24]))
+                parts.append(f"-- 样例: ({', '.join(vals)})")
         except sqlite3.Error:
             pass
     conn.close()
@@ -317,6 +339,11 @@ def _mask_string_literals(sql: str) -> str:
             out.append(c)
             i += 1
     return "".join(out)
+
+
+def _column_ref_re(column: str):
+    """匹配 SQL 中的列引用(前后不再是标识符字符), 用于受限字段的语句级拦截。"""
+    return re.compile(rf"(?<![A-Za-z0-9_]){re.escape(column)}(?![A-Za-z0-9_])", re.I)
 
 
 def _with_main_verb(sql: str):
@@ -570,7 +597,7 @@ class QueryAgent:
     def __init__(self, db_path: str, api_key: str, verbose: bool = True,
                  biz_context: str | None = None, sql_hints: dict | None = None,
                  caliber_assertions: list | None = None, sample_rows: int = 2,
-                 on_stage=None):
+                 sensitive_columns: list | None = None, on_stage=None):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
@@ -583,16 +610,20 @@ class QueryAgent:
         self.caliber_assertions = caliber_assertions or []
         # M9: 样例数据出境开关(默认 2, 与既有行为一致); 0 = 不把任何样例数据拼进 schema
         self.sample_rows = max(0, int(sample_rows))
+        # 隐私: 受限字段(库内真实列名, 由调用方注入)。机制通用, 券商列名不硬编码进引擎。
+        self.sensitive_columns = [str(c).strip().lower()
+                                  for c in (sensitive_columns or []) if str(c).strip()]
         # M10: 可选阶段回调(默认 None = 与未接入回调时的行为逐字节一致)。
         # 签名 on_stage(stage_title: str, status: str, detail: str): 每个阶段开始(status=RUNNING)
         # 与阶段结束(status=OK/WARN/FAIL/SKIP)各回调一次。纯旁路, 不参与任何判定逻辑。
         self.on_stage = on_stage
         self.meta = get_table_meta(db_path)
-        self.schema = build_schema(db_path, self.sample_rows)
+        self.schema = build_schema(db_path, self.sample_rows, self.sensitive_columns)
         self.trace = Trace()
         self._stage_idx = 0
-        LOG.info("引擎初始化: 库=%s 表=%s 样例数据行数=%d 模型=%s",
-                 Path(db_path).name, ",".join(sorted(self.meta)), self.sample_rows, MODEL)
+        LOG.info("引擎初始化: 库=%s 表=%s 样例数据行数=%d 受限字段数=%d 模型=%s",
+                 Path(db_path).name, ",".join(sorted(self.meta)), self.sample_rows,
+                 len(self.sensitive_columns), MODEL)
 
     # ---- 基础设施 ----
     def _log(self, msg: str):
@@ -982,17 +1013,50 @@ class QueryAgent:
         return sql
 
     # ---- 6 安全校验 ----
+    def _sensitive_refs(self, sql: str) -> list:
+        """返回 SQL 中引用的受限字段(先屏蔽字符串字面量, 避免误伤同名字符串常量)。"""
+        if not self.sensitive_columns:
+            return []
+        probe = _mask_string_literals(sql)
+        return [c for c in self.sensitive_columns if _column_ref_re(c).search(probe)]
+
+    def _reject_sensitive(self, sql: str) -> None:
+        hits = self._sensitive_refs(sql)
+        if hits:
+            raise ValueError(
+                f"字段 {', '.join(hits)} 属于受限敏感字段, 不对外展示"
+                "(样例数据与查询结果均已屏蔽); 请改用非敏感字段。")
+
+    def _mask_sensitive_cells(self, headers: list, rows: list):
+        """结果层双保险: 受限字段列直接以 *** 占位(按结果列名匹配)。"""
+        if not self.sensitive_columns or not headers:
+            return headers, rows
+        idx = [i for i, h in enumerate(headers)
+               if str(h).strip().lower() in self.sensitive_columns]
+        if not idx:
+            return headers, rows
+        masked = []
+        for row in rows:
+            row = list(row)
+            for i in idx:
+                if 0 <= i < len(row):
+                    row[i] = SENSITIVE_MASK
+            masked.append(tuple(row))
+        return headers, masked
+
     def _validate(self, sql: str) -> str:
         self._begin_stage("安全校验")
         cleaned = validate_sql(sql)
+        self._reject_sensitive(cleaned)
         self._stage("安全校验", "OK",
-                    "单条只读语句 SELECT/WITH/EXPLAIN, 注释已剥离, 拒绝多语句")
+                    "单条只读语句 SELECT/WITH/EXPLAIN, 注释已剥离, 拒绝多语句; 受限字段已拦截")
         return cleaned
 
     # ---- 7 执行 ----
     def _execute(self, sql: str):
         self._begin_stage("执行")
         headers, rows, truncated = run_query(self.db_path, sql)
+        headers, rows = self._mask_sensitive_cells(headers, rows)
         # M9: 只记 SQL 长度/结果行数/列数, 绝不记 SQL 正文与数据行内容
         LOG.info("[执行] SQL 长度=%d 结果行数=%d 列数=%d 截断=%s",
                  len(sql), len(rows), len(headers), truncated)
@@ -1014,6 +1078,7 @@ class QueryAgent:
         new_sql = llm_chat("你是 SQLite 专家, 负责修复一条出错的只读 SQL。只输出修正后的 SQL 本身, 尽量完整: 不要截断、不要写注释或解释。",
                            user, self.api_key, max_tokens=2800)
         cleaned = validate_sql(new_sql)
+        self._reject_sensitive(cleaned)
         self._stage(stage_title, "WARN", f"SQL 修复后重试: {cleaned[:160]}…")
         return cleaned
 

@@ -131,6 +131,10 @@ RULES_CHANGES = [    "R1 口径启发式: expect_tables 全属于单快照/纯�
     "R10 few-shot 口径示例: _generate_sql 按关键词触发注入 1 例(持有→份额 hold_cnt / 增幅→绝对增量 / 科创→LIKE+分公司聚合); 机制在引擎 sql_hints, 内容由评测 harness 注入(不硬编码券商口径)。",
 ]
 
+# 受限敏感字段(库内真实列名, 由 harness 注入引擎; 引擎只认机制, 不硬编码券商列名)。
+# sor_pty_id 为疑似个人关联标识: 样例数据不外发、SQL 引用被拦截、结果列掩码。
+SENSITIVE_COLUMNS = ["sor_pty_id"]
+
 # 企业口径语义(隔离在评测脚本内, 不进入 text2sql.py)
 ENTERPRISE_BIZ = """券商客户营销库(2026-Q1 事实 + 客户主档单快照)。
 【表】dim_branch 营业部(org_id/org_name/up_org_id/up_org_name); dim_public 编码字典(code,code_type_id,describe); dim_product 产品(prdt_id/prdt_name/prdt_type_id 二级/prdt_type_name/up_prdt_type_id 一级/up_prdt_type_name); ads_cust_info_d 客户主档(pty_id/org_id/cust_age/prov_name/city_name/cust_lvl_cd/cust_status/cust_type/gender_cd/edu_cd/prof_cd/name 已脱敏); dwd_cust_hold_d 每日持仓(pty_id/prdt_id/sys_source/ccy/hold_cnt 份额/mkt_val 市值); dwd_cust_tran_d 每日买卖(buy_cnt 次数/buy_mnt 数量/buy_amt 金额/buy_rake 佣金/buy_fare 费用, sell_* 同); dws_cust_aset_d 每日资产(nm_tot_aset 普通总资产/nm_bal 普通现金/fc_pur_aset 信用净资产/fc_bal 信用现金); dws_cust_fin_d 每日资金流(cash_in/cash_out/tran_in/tran_out/assign_in/assign_out)。
@@ -347,7 +351,8 @@ def main():
     api_key = load_api_key()
     forced_model = os.environ.get("LLM_MODEL", "").strip()
     agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
-                       sql_hints=SQL_HINTS, caliber_assertions=CALIBER_ASSERTIONS)
+                       sql_hints=SQL_HINTS, caliber_assertions=CALIBER_ASSERTIONS,
+                       sensitive_columns=SENSITIVE_COLUMNS)
 
     print(f"评测开始: {len(items)}/{len(all_items)} 问{' (部分运行: 不覆盖基线报告)' if partial else ''}, "
           f"全量 deepseek-chat(空响应实验结论, 双跑取平均)"
@@ -438,12 +443,13 @@ def main():
         return
     lines = []
     A = lines.append
-    A("# 评测报告-基线(M2)")
+    A("# 评测报告-基线")
     A("")
     A(f"> 生成时间:{datetime.now().isoformat(timespec='seconds')}")
     A(f"> 数据库:`{DB}`(enterprise.db, 91MB, 只读)")
     A("> 引擎:text2sql_demo/text2sql.py 9 阶段 QueryAgent,biz_context=企业口径语义")
     A("> 模型:引擎默认(deepseek-v4-flash 可经 LLM_MODEL 覆盖);全部数字来自真实运行,禁止估算")
+    A("> 隐私:受限字段(sensitive_columns, 如 sor_pty_id)样例数据不外发、SQL 引用拦截、结果列掩码;真实数据建议 --sample-rows 0")
     A("")
     A("## 1. 指标汇总(40 问 = 简单14/中等14/复杂12)")
     A("")

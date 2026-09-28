@@ -61,6 +61,8 @@ def extract_domain_tokens(biz: dict) -> set:
                     tokens.add(v)
     for key in (biz.get("sql_hints") or {}):
         tokens.add(key)
+    for col in (biz.get("sensitive_columns") or []):
+        tokens.add(str(col))
     for v in (biz.get("sql_hints") or {}).values():
         for m in re.findall(r"\b[a-z_][a-z0-9_]{3,}\b", str(v)):
             tokens.add(m)
@@ -94,7 +96,8 @@ def extract_run_eval_biz():
     for node in tree.body:
         if isinstance(node, ast.Assign):
             for t in node.targets:
-                if isinstance(t, ast.Name) and t.id in {"ENTERPRISE_BIZ", "SQL_HINTS", "CALIBER_ASSERTIONS"}:
+                if isinstance(t, ast.Name) and t.id in {
+                        "ENTERPRISE_BIZ", "SQL_HINTS", "CALIBER_ASSERTIONS", "SENSITIVE_COLUMNS"}:
                     vals[t.id] = ast.literal_eval(node.value)
     return vals
 
@@ -145,8 +148,9 @@ def main():
     src = extract_run_eval_biz()
     same = (biz.get("biz_context") == src["ENTERPRISE_BIZ"]
             and biz.get("sql_hints") == src["SQL_HINTS"]
-            and biz.get("caliber_assertions") == src["CALIBER_ASSERTIONS"])
-    check("口径同源: enterprise_biz.json == run_eval.py 三常量", same,
+            and biz.get("caliber_assertions") == src["CALIBER_ASSERTIONS"]
+            and biz.get("sensitive_columns") == src["SENSITIVE_COLUMNS"])
+    check("口径同源: enterprise_biz.json == run_eval.py 四常量", same,
           "" if same else "JSON 与 run_eval.py 不一致")
 
     # 3. 引擎与演示层域词 grep
@@ -179,7 +183,7 @@ def main():
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         proc = subprocess.Popen(
-            [sys.executable, str(HERE / "server.py"), "--db", str(db), "--port", str(p)],
+            [sys.executable, str(HERE / "server.py"), "--db", str(db), "--port", str(p), "--offline"],
             cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", env=env)
         base = f"http://127.0.0.1:{p}"

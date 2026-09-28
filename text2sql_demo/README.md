@@ -26,6 +26,9 @@ Web UI 默认连券商企业库 enterprise.db,业务口径从 `benchmark/run_eva
 
 ## 配置
 
+**无密钥起界面(离线冒烟)**: `python demo/server.py --db customer_marketing_db/marketing.db --offline`
+—— 可看界面与 `/api/health`,提问会立即返回"未配置密钥"的明确错误,不发起任何网络调用;真实问答仍需下面配置的密钥。
+
 密钥放在同目录 `.env.local`(已被 .gitignore 排除,不入库):
 
 ```
@@ -44,6 +47,7 @@ agent = QueryAgent(
     verbose=True,
     biz_context="<业务口径说明文本>",   # 不传则用内置演示营销库语义
     sql_hints={"持有": "口径示例 SQL 片段...", ...},  # 关键词触发 few-shot, 可选
+    sensitive_columns=["<库内受限列名>", ...],  # 可选: 样例不外发 + SQL/结果双层屏蔽
 )
 ans = agent.run("问题", clarify=True)   # clarify=False 用于非交互(评测)
 # M10 可选: 阶段进度回调(不传时行为与以前逐字节一致), 阶段开始/结束各回调一次
@@ -52,6 +56,7 @@ agent.run("问题", clarify=True, on_stage=lambda stage, status, detail: print(s
 
 - `biz_context`:注入各 LLM 阶段的业务口径说明,按库切换语义,券商语义不硬编码进引擎。
 - `sql_hints`:生成 SQL 阶段按关键词触发注入口径示例(每类 1 例)。
+- `sensitive_columns`:受限字段(库内真实列名)列表,由调用方注入;引擎对其做**样例打码 + SQL 引用拦截 + 结果列掩码**三层屏蔽。企业库示例见 `demo/enterprise_biz.json` 的 `sensitive_columns`。
 - `on_stage`(M10):可选阶段回调 `(stage_title, status, detail)`,`status` 取 `RUNNING`(阶段开始)/
   `OK`/`WARN`/`FAIL`/`SKIP`(阶段结束);构造参数与 `run` 参数均可传,默认 `None`(不传则行为不变)。
   演示层用它把阶段进度做成了 SSE 流式接口,见根 [`README.md`](../README.md) 与 [`docs/演示脚本.md`](../docs/演示脚本.md)。
@@ -70,7 +75,7 @@ python ui_smoke.py                     # UI 全流程自测(5+1 问)
 ```
 
 - 基准集:benchmark/benchmark.json(40 问,gold_sql 已全量真实跑通闸门)。
-- 最新双跑:e2e **92.5%**(exec 100% / 口径 100% / 幻觉 0% / P50 8.2s),见 docs/评测报告-基线.md。
+- 最新双跑:e2e **100%**(M10 复算, 双跑均 40/40;exec 100% / 口径 100% / 幻觉 0% / P50 8.3s),见 docs/评测报告-基线.md 与根 README 的波动披露。
 
 ## 测试
 
@@ -83,7 +88,7 @@ python ui_smoke.py                     # UI 全流程自测(5+1 问)
 - **中文乱码**:Windows 终端跑 CLI 加 `PYTHONIOENCODING=utf-8`。
 - **库只读**:引擎 mode=ro + PRAGMA query_only,评测/演示不得写库。
 - **企业库重建**:由数据集目录 8 张 CSV 载入 SQLite(数值 REAL/日期与 ID TEXT),详见 docs/数据说明.md。
-- **为什么复杂题还有 4 题不达标**:C02/C07 为长上下文口径遵守度瓶颈 + 科创板存托凭证口径疑点,提升路径见 docs/技术报告.md §8。
+- **复杂题还会波动吗**:M10 复算 4 轮里 3 轮 40/40,1 轮 C05 因 LLM 多带一列判 39/40(温度 0 也不能完全消除);提升路径见 docs/技术报告.md §8。
 
 ## M9：日志与数据出境开关
 
