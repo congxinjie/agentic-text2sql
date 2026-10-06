@@ -388,6 +388,54 @@
   4. `git diff --stat` 与 `git show --stat` **只含 .md 文件**(证明零代码改动)
   5. 工作区干净; 一次 commit(不 push)
 
+### M13 引擎补「实体」独立字段 + 程序化校验(命题五要素收口)
+
+> 依据: 命题要求"识别用户意图、**实体**、维度、指标和筛选条件"。维度/指标/筛选是显式字段, 意图由
+> `summary`/`question_specificity`/`answerable` 承载, 唯**实体**在 `docs/算法说明.md` 的术语对照表里被如实标为
+> "**未实现独立字段、无程序化校验器**" —— 这是五要素里唯一对不上号的一项, 也是评审逐项点名时最容易被问住的一处。
+> 本轮把它补成"有独立字段 + 有程序化校验 + 有负对照"的真实能力。
+
+- 产出:
+  1. **引擎增 `entities`**(只许增量扩展, 禁止重写):
+     - 计划(plan)字典增键 `entities`: 列表, 每项
+       `{"name": 实体名, "table": 承载表, "key": 关联键/标识列, "evidence": 证据, "source": "explicit"|"implied"}`
+     - 语义: **问题指向的业务对象**(查询主体/对象), 必须落到"承载表 + 关联键"上, 不许是自由文本标签
+     - 抽取两通道(缺一不可): ① `explicit` —— 问题原文命中**注入词表**的别名, `evidence` 记命中的原文片段;
+       ② `implied` —— 计划用到某表但问题未点名, 经词表反查得实体, `evidence` 记"计划用到表 X"
+  2. **词表一律由调用方注入**(铁律 2): `biz_context` 增可选小节 `entities`, 形如
+     `{"客户": {"table": "customers", "key": "pty_id", "aliases": ["客户", "客户信息"]}}`;
+     引擎只按注入读取, **不得出现任何券商域词**(否则 CI `decouple` 变红)
+  3. **程序化校验器 `_check_entities(plan, u, r)`**(与 `_check_plan` 同级; 失败并入 issues 并触发**一次**修复重试):
+     - a. 实体 `table` 必须真实存在**且**在 `plan.tables` 内 → 否则 FAIL
+     - b. 实体 `key` 必须是该表**真实列**(取自 `get_table_meta`) → 否则 FAIL
+     - c. `source=explicit` 的实体必须在**问题原文**里对得上(命中的别名子串) → 对不上 FAIL(禁止把 implied 冒充 explicit)
+     - d. 计划用到词表能反查出的表、实体列表却漏了该实体 → FAIL(漏识别)
+     - e. 实体列表为空**不算错**, 但计划必须显式给出 `entities_covered: false`(诚实标注"本次未覆盖实体")
+  4. **不得改动 SQL 生成路径**: entities 只做记录与校验, 不参与 SQL 组装 ⇒ 对既有 40/40 金标应为 **no-op**
+  5. 输出面贯通: Trace 增一条实体记录; `Answer` 增 `entities`; CLI 打印、`/api/ask` 与 SSE 的 `done` 事件带 entities; `--json` 含 entities
+  6. 注入侧样例: `demo/enterprise_biz.json` 增 `entities` 小节(券商侧: 客户/产品/营业部/客户号…; 表名与键必须与库一致)
+  7. **`ci_check.py` 增检查项 `entities`**(合成库 + 注入词表 + 桩 LLM, 与既有 8 项同风格):
+     正例必须绿, 且**四个负对照**必须红: 错表 / 错列 / 假 explicit / 漏识别
+  8. 文档: `docs/算法说明.md` 术语对照表「实体」行由"未实现"改为"字段+行号+校验方式"; `docs/工具调用方案.md`
+     工具契约补 `_check_entities`; README 命题对应处更新; `docs/交付对账.md` §5 补记本轮
+
+- 铁律:
+  - 引擎**零第三方依赖**(纯标准库); 禁重写, 只许增量扩展/修 bug
+  - **券商域词不得进引擎**(词表一律注入); `judge` 判定器**一行不动**(CI 有 sha256 冻结断言); 评测口径不变
+  - `*.db` 与密钥不入库; 中文注释; 中文 commit; 一次 commit; **不要 push**
+  - **`decouple` 检查的机制(已探明, 别踩坑)**: 它抽的 token 只来自 `caliber_assertions.must_contain/must_not_contain`、
+    `sql_hints` 的**键**、`sensitive_columns`、以及 `biz_context` 文本里的 `dim_/dwd_/dws_/ads_` 表名 ——
+    **新增 `entities` 小节里的中文实体名不会被抽成 token**, 所以 客户/产品/营业部 这类名字放在那里是安全的。
+    但: ① **别把实体词塞进 `sql_hints` 或 `caliber_assertions`**; ② 引擎里现有的 38 处"客户"等是既有提示词文本、
+    与 token 表不冲突, **不要为了让检查好看去改它**(改提示词有扰动 40/40 的风险)
+
+- 退出标准(必须贴真实输出):
+  1. 单问实跑 ≥2 题(**一个 explicit、一个 implied**), 贴出 `entities` 的真实 JSON
+  2. **负对照四连**: 依次注入 错表 / 错列 / 假 explicit / 漏识别 → `_check_entities` 各返回 FAIL 并贴输出; 复原后通过
+  3. `python3 ci_check.py` **9 项**全绿 exit=0(第 9 项 `entities` 自带四个负对照)
+  4. **40 问全量重跑由验收方(队伍侧)执行** —— 你只跑单问, 不要动 `benchmark/runs/` 既有产物
+  5. `git diff --stat` 只含预期文件; 工作区干净; 一次 commit(不 push)
+
 ## 6. 评测口径定义(M2 之前必须锁死,防止自说自话)
 
 ### 6.1 指标定义
