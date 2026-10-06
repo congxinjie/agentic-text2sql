@@ -6,7 +6,7 @@
 #   bash scripts/fetch_dataset.sh --csv-only     # 只拉 4 张大表 CSV(约 64MB)
 #   bash scripts/fetch_dataset.sh --db-only      # 只拉现成 enterprise.db(约 88MB)
 #   bash scripts/fetch_dataset.sh --rebuild      # 拉完 CSV 后接着跑 benchmark/build_db.py 重建库(约 6 秒)
-#   bash scripts/fetch_dataset.sh --check        # 不下载, 只校验当前目录里已有的文件
+#   bash scripts/fetch_dataset.sh --check        # 不下载, 只校验本地已有的附件(一个都没有则报错退出)
 #
 # 认证: 私有仓库需要 gh 已登录(gh auth status) 或导出 GH_TOKEN。
 # 幂等: 重复执行会覆盖同名文件(--clobber); 校验不通过则退出码非 0。
@@ -88,6 +88,13 @@ fi
 
 echo
 echo "[·] 校验 sha256 (对照仓库根 SHA256SUMS, 缺的文件跳过)"
+present=0
+for f in "${WANT[@]}"; do [ -f "$D/$f" ] && present=$((present + 1)); done
+if [ "$present" = 0 ]; then
+  echo "    ✗ 本地没有可校验的附件(检查目录: $D)" >&2
+  echo "      先下载: bash scripts/fetch_dataset.sh   (或 --db-only / --csv-only)" >&2
+  exit 1
+fi
 cd "$ROOT"
 if sha256sum -c --ignore-missing SHA256SUMS; then
   echo "    ✓ sha256 全部匹配"
