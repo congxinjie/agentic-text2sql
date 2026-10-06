@@ -127,9 +127,11 @@ CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-la
 | 8 | `privacy` | 合成库 + 注入受限字段：断言样例数据不外发、SQL 直引/别名引用被拦截、结果列掩码，并带"不注入则原值可见"的负对照 |
 
 **刻意不跑什么（边界写清楚）**：`benchmark/run_eval.py`（40 问全量评测）与 `benchmark/run_edge_cases.py`
-（E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，大表不入库，clone 后无法重建）
-② 真实 DeepSeek API 密钥。CI 只覆盖"既不需要数据库、也不需要密钥"的那一半；要复现评测数字，
-按 [`docs/评测报告-基线.md`](docs/评测报告-基线.md) 与 [`text2sql_demo/README.md`](text2sql_demo/README.md) 在本地跑。
+（E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，不入 git，
+需先 `bash scripts/fetch_dataset.sh` 从 Release `dataset-v1` 拉取）② 真实 DeepSeek API 密钥。
+CI 刻意保持「零联网、无密钥、≤ 5 分钟」，不去下载 151 MB 附件；它只覆盖"既不需要数据库、也不需要密钥"的那一半；
+要复现评测数字，按 [`docs/评测报告-基线.md`](docs/评测报告-基线.md) 与 [`text2sql_demo/README.md`](text2sql_demo/README.md) 在本地跑
+（数据获取见下方「数据说明」）。
 同理，`demo/selfcheck.py`、`benchmark/` 下的若干无头自检工具与 `benchmark/m7_selfcheck.py` 这类
 "与 git HEAD 比对"的检查也留在本机跑（前者需要 `marketing.db`，后者需要完整 git 历史）。
 
@@ -153,19 +155,34 @@ python3 ci_check.py --list           # 列出检查项 id
 | 用途 | `customer_marketing_db/` 的演示小库 | 项目主库（评测与演示都用它） |
 | 来源 | `create_db.py` 生成，虚构数据、种子固定 | `benchmark/build_db.py` 从 8 张 CSV 重建 |
 | 入库 | 否（`*.db` 已忽略） | 否（约 88 MB） |
-| 能否从本仓库重建 | ✅ `python3 create_db.py` | ⚠️ 需要那 4 张大表，见下 |
+| 获取 | ✅ `python3 create_db.py` | ✅ `bash scripts/fetch_dataset.sh` ← Release [`dataset-v1`](https://github.com/congxinjie/agentic-text2sql/releases/tag/dataset-v1) 附件 |
+| 能否从本仓库重建 | ✅ `python3 create_db.py` | ✅ 拉到 4 张大表后 `python3 benchmark/build_db.py`（已验内容级一致，见下） |
 
 ## 数据说明（重要）
 
-- 数据集目录共 8 张 CSV，其中 **4 张大表未入库**（合计约 64 MB：`dim_product` / `dwd_cust_hold_d` /
-  `dwd_cust_tran_d` / `dws_cust_aset_d`）。原因：大文件进 git 历史是**永久**的，事后要删得重写历史。
-- 因此**从本仓库 clone 出来无法重建 `enterprise.db`**。要重建：把 4 张大表放进
-  `Agentic智能问数在客户营销场景的应用数据集/`，再执行
+- 数据集目录共 8 张 CSV，其中 **4 张大表（合计约 64 MB：`dim_product` / `dwd_cust_hold_d` /
+  `dwd_cust_tran_d` / `dws_cust_aset_d`）与生成的 `enterprise.db`（约 88 MB）不入 git 历史** ——
+  大文件进 git 历史是**永久**的，事后要删得重写历史。它们改由 **GitHub Release 附件**提供。
+- 所以 **clone 之后只差一条命令即可自包含复现**：
 
   ```bash
-  python3 benchmark/build_db.py        # 纯标准库；按 docs/数据说明.md §3 做行数校验，不一致即失败
+  bash scripts/fetch_dataset.sh              # 拉 5 个附件(约 151MB) + sha256 校验 + 库内容校验(8 表/831447 行)
+  bash scripts/fetch_dataset.sh --db-only     # 只要现成主库(约 88MB)
+  bash scripts/fetch_dataset.sh --csv-only --rebuild   # 只要 4 张大表并自己重建库
+  bash scripts/fetch_dataset.sh --check       # 不下载, 只校验本地已有文件
   ```
 
+  脚本需要 `gh` 已登录或 `GH_TOKEN`（私有仓库）；附件清单、逐个 sha256 与说明见
+  [Release `dataset-v1`](https://github.com/congxinjie/agentic-text2sql/releases/tag/dataset-v1)，
+  仓库根 [`SHA256SUMS`](SHA256SUMS) 是同一份校验清单。
+- **重建成什么**：4 张大表放进 `Agentic智能问数在客户营销场景的应用数据集/` 后执行
+
+  ```bash
+  python3 benchmark/build_db.py        # 纯标准库、约 6 秒；按 docs/数据说明.md §3 做行数校验，不一致即失败
+  ```
+
+  实测比对：重建出的库与 Release 里的 `enterprise.db` **逐表逐行内容一致**（8/8 表行数与内容哈希全等、
+  DDL 相同、合计 831,447 行、7 个索引）；文件级 sha256 不同仅因 SQLite 物理页布局，属正常。
 - 已入库的是 4 张小表 + `表描述.sql` + `Q&A.xlsx`（表结构与问答样例，体积小但价值高）。
 - 数据来源、每表每字段、预处理与脱敏规则见 [`docs/数据说明.md`](docs/数据说明.md)。
 
