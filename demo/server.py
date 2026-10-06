@@ -81,16 +81,17 @@ def resolve_path(raw: str, base: Path) -> Path:
 def load_biz_context_file(path: str | None):
     """从 JSON 文件注入业务口径; 不传则走引擎默认语义。
 
-    返回 (biz_context, sql_hints, caliber_assertions, sensitive_columns)。
-    sensitive_columns 由注入侧给出库内真实列名, 引擎只认机制(不硬编码券商列名)。
+    返回 (biz_context, sql_hints, caliber_assertions, sensitive_columns, entities)。
+    sensitive_columns 与 entities 由注入侧给出库内真实列名, 引擎只认机制(不硬编码券商列名/实体名)。
     """
     if not path:
-        return None, None, None, None
+        return None, None, None, None, None
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     return (data.get("biz_context"),
             data.get("sql_hints") or {},
             data.get("caliber_assertions") or [],
-            data.get("sensitive_columns") or [])
+            data.get("sensitive_columns") or [],
+            data.get("entities") or {})
 
 
 def matched_assertions(question: str, plan: dict | None, rules: list) -> list:
@@ -132,6 +133,8 @@ def run_ask(agent: QueryAgent, question: str, clarify: bool, on_stage=None) -> d
         "explanation": ans.explanation,
         "error": ans.error,
         "plan": plan,
+        "entities": list(getattr(ans, "entities", []) or []),
+        "entities_covered": bool(getattr(ans, "entities_covered", False)),
         "caliber_assertions": matched_assertions(
             question, plan, getattr(agent, "caliber_assertions", []) or []),
         "trace": [{"stage": e.stage, "status": e.status,
@@ -324,7 +327,7 @@ def main(argv=None):
     biz_file = None
     if args.biz_context:
         biz_file = str(resolve_path(args.biz_context, ROOT).resolve())
-    biz_context, sql_hints, caliber_assertions, sensitive_columns = load_biz_context_file(biz_file)
+    biz_context, sql_hints, caliber_assertions, sensitive_columns, entities = load_biz_context_file(biz_file)
 
     try:
         api_key = text2sql.load_api_key()
@@ -344,6 +347,7 @@ def main(argv=None):
                            sql_hints=sql_hints,
                            caliber_assertions=caliber_assertions,
                            sensitive_columns=sensitive_columns,
+                           entities=entities,
                            sample_rows=args.sample_rows)
 
     index_html = (HERE / "index.html").read_bytes()

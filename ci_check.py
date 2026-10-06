@@ -619,6 +619,129 @@ def check_privacy():
     return True, "受限字段四层(样例/SQL直引/SQL别名/结果)屏蔽通过, 负对照有效"
 
 
+# ---------------- 9. 实体识别与校验断言(M13) ----------------
+
+def check_entities():
+    """M13: 实体识别(explicit 问题直指 / implied 计划隐含 + 程序化兜底)与五项程序化校验;
+    四个负对照(错表/错列/假 explicit/漏识别)必须变红; 不注入词表时必须零影响。"""
+    mod = get_engine()
+    with tempfile.TemporaryDirectory(prefix="ci_entities_") as tmp:
+        db = Path(tmp) / "ent.db"
+        build_synth_db(db)
+        vocab = {"客户": {"table": "customers", "key": "cust_id", "aliases": ["客户", "客户信息"]},
+                 "订单": {"table": "orders", "key": "order_id", "aliases": ["订单", "交易"]}}
+        question = "华东地区有多少客户?"
+        plan = {"summary": "华东客户数", "tables": ["customers"], "filters": ["region = '华东'"],
+                "aggregations": [{"func": "COUNT", "field": "*", "alias": "客户数"}],
+                "group_by": [], "steps": ["筛选华东", "计数"],
+                "output_columns": [{"name": "客户数", "desc": "指标列"}]}
+        problems = []
+
+        # (1) 词表未注入: 实体功能整体关闭(计划逐字不变)
+        off = mod.QueryAgent(str(db), "ci-stub-key", verbose=False)
+        if off._enforce_entity_contract(question, dict(plan)) != plan:
+            problems.append("词表未注入时计划被改动(应逐字不变)")
+
+        # (2) 注入词表 + 计划自己没声明实体 -> 程序化兜底补上, 校验通过
+        agent = mod.QueryAgent(str(db), "ci-stub-key", verbose=False, entities=vocab)
+
+        # (2b) 关键不变量: 注入词表**不得**改变计划阶段发给 LLM 的提示词
+        # (设计选择: 曾小样本怀疑词表会带动模型多 JOIN 承载表, 复查判定为 LLM 固有抖动;
+        #  仍不把词表拼进提示词, 使"实体识别不影响计划"成为可断言的不变量, 而非靠抽样论证)
+        def plan_prompt(ag):
+            seen = []
+            old = mod.llm_chat
+
+            def cap(system, user, api_key, max_tokens=1500):
+                if "计划器" in system:
+                    seen.append(user)
+                return json.dumps(plan, ensure_ascii=False)
+
+            mod.llm_chat = cap
+            try:
+                u = mod.Understanding(answerable=True, summary="华东客户数",
+                                      metrics=["客户数"], filters=["region=华东"])
+                r = mod.Retrieval(tables=["customers"], columns={"customers": ["region"]})
+                ag._plan(u, r)
+            finally:
+                mod.llm_chat = old
+            return seen[0] if seen else ""
+
+        pp_off, pp_on = plan_prompt(off), plan_prompt(agent)
+        if not pp_off:
+            problems.append("未能捕获计划阶段提示词(stub 未生效)")
+        elif pp_off != pp_on:
+            problems.append("注入词表后计划阶段提示词发生变化(实体识别不得干扰计划)")
+        elif "实体词表" in pp_on or "客户信息" in pp_on:
+            # 只查"不可能出现在 schema 里"的东西(cust_id 之类是库里的真实列, 出现在 schema 里是合理的)
+            problems.append("词表内容泄进了计划提示词")
+        p1 = agent._enforce_entity_contract(question, dict(plan))
+        ok, issues = agent._check_entities(question, p1)
+        if not ok:
+            problems.append(f"正例校验未通过: {issues}")
+        ents = {e["name"]: e for e in p1.get("entities") or []}
+        if ents.get("客户", {}).get("source") != "explicit":
+            problems.append("问题原文含「客户」却未识别为 explicit")
+        if ents.get("客户", {}).get("key") != "cust_id":
+            problems.append("实体未落到注入的关联键 customers.cust_id")
+        if p1.get("entities_covered") is not True:
+            problems.append("识别出实体时 entities_covered 应为 true")
+
+        # (3) 端到端(桩 LLM): 实体真的从 Answer 出来, 且 Trace 留下「识别实体」阶段
+        install_stub(mod)
+        ans = agent.run(question, clarify=False)
+        if not ans.entities or not ans.entities_covered:
+            problems.append("端到端未产出实体")
+        if not any(e.stage == "识别实体" for e in ans.trace.entries):
+            problems.append("Trace 未留下「识别实体」阶段")
+
+        # (4) 负对照四连 + 覆盖声明矛盾: 必须全部变红
+        def probe(ent_list, covered=None):
+            p = dict(p1)
+            p["entities"] = ent_list
+            if covered is not None:
+                p["entities_covered"] = covered
+            return agent._check_entities(question, p)
+
+        negs = [
+            ("错表", [{"name": "客户", "table": "ghost_tbl", "key": "cust_id",
+                       "evidence": "x", "source": "explicit"}], "承载表不存在"),
+            ("错列", [{"name": "客户", "table": "customers", "key": "ghost_col",
+                       "evidence": "x", "source": "explicit"}], "不是真实列"),
+            ("假 explicit", [{"name": "订单", "table": "orders", "key": "order_id",
+                              "evidence": "x", "source": "explicit"}], "找不到它的别名"),
+            ("漏识别", [], "漏识别实体"),
+        ]
+        for label, ent_list, expect in negs:
+            ok_n, iss = probe(ent_list)
+            if ok_n:
+                problems.append(f"负对照「{label}」竟然通过(校验形同虚设)")
+            elif not any(expect in i for i in iss):
+                problems.append(f"负对照「{label}」报错文案不含「{expect}」: {iss}")
+        ok_e, iss_e = probe(list(p1.get("entities") or []), covered=False)
+        if ok_e or not any("不应为 false" in i for i in iss_e):
+            problems.append("负对照「覆盖声明矛盾」未按预期报错")
+
+        # (5) 模型自报不实 -> 兜底丢弃且记录原因(不采信词表外的名字/未落到计划里的实体)
+        p2 = agent._enforce_entity_contract(
+            question,
+            {"tables": ["customers"], "filters": [], "steps": ["x"],
+             "entities": [{"name": "不存在的实体", "table": "customers", "key": "cust_id"},
+                          {"name": "订单", "table": "orders", "key": "order_id"}]})
+        if [e["name"] for e in p2["entities"]] != ["客户"]:
+            problems.append(f"兜底未丢弃不实声明: {[e['name'] for e in p2['entities']]}")
+        if len(p2.get("entities_notes") or []) != 2:
+            problems.append(f"兜底未记录丢弃原因: {p2.get('entities_notes')}")
+
+        if problems:
+            for pr in problems:
+                print(f"      {pr}")
+            return False, "实体识别/校验失败: " + "; ".join(problems)
+    return True, ("实体识别(问题直指/计划隐含 + 程序化抽取)与五项校验通过; "
+                  "四个负对照(错表/错列/假 explicit/漏识别)均变红; "
+                  "计划提示词在注入词表前后逐字不变(实体不干扰计划); 不注入词表时零影响")
+
+
 CHECKS = [
     ("syntax", "语法编译", check_syntax),
     ("deps", "导入与无第三方包断言", check_deps),
@@ -628,6 +751,7 @@ CHECKS = [
     ("synth-smoke", "合成库 + 桩 LLM 端到端冒烟", check_synth_smoke),
     ("sse", "SSE 接口契约冒烟", check_sse),
     ("privacy", "受限字段屏蔽断言", check_privacy),
+    ("entities", "实体识别与校验断言", check_entities),
 ]
 
 

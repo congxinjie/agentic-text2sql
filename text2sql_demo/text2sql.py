@@ -518,6 +518,9 @@ class Answer:
     explanation: str = ""
     error: str = ""
     trace: Trace = field(default_factory=Trace)
+    # M13: 识别出的业务实体(词表未注入时恒为空)与"本次是否覆盖了实体"的显式声明
+    entities: list = field(default_factory=list)
+    entities_covered: bool = False
 
 
 # ================= 各阶段 Prompt =================
@@ -597,7 +600,8 @@ class QueryAgent:
     def __init__(self, db_path: str, api_key: str, verbose: bool = True,
                  biz_context: str | None = None, sql_hints: dict | None = None,
                  caliber_assertions: list | None = None, sample_rows: int = 2,
-                 sensitive_columns: list | None = None, on_stage=None):
+                 sensitive_columns: list | None = None, on_stage=None,
+                 entities: dict | None = None):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
@@ -613,6 +617,15 @@ class QueryAgent:
         # 隐私: 受限字段(库内真实列名, 由调用方注入)。机制通用, 券商列名不硬编码进引擎。
         self.sensitive_columns = [str(c).strip().lower()
                                   for c in (sensitive_columns or []) if str(c).strip()]
+        # M13: 实体词表(库内真实表名/列名, 由调用方注入)。机制通用: 引擎只按注入读取, 不内置任何业务实体名;
+        # entities=None(默认)时实体功能整体关闭 —— 提示词、计划键、Trace 与 Answer 均与以前一致。
+        self.entity_vocab = {str(k).strip(): v for k, v in (entities or {}).items()
+                             if isinstance(v, dict) and str(k).strip()}
+        self._entity_by_table: dict = {}
+        for _name, _spec in self.entity_vocab.items():
+            _tbl = str(_spec.get("table", "")).strip()
+            if _tbl and _tbl not in self._entity_by_table:  # 一张表只归一个实体, 先到先得
+                self._entity_by_table[_tbl] = (_name, str(_spec.get("key", "")).strip())
         # M10: 可选阶段回调(默认 None = 与未接入回调时的行为逐字节一致)。
         # 签名 on_stage(stage_title: str, status: str, detail: str): 每个阶段开始(status=RUNNING)
         # 与阶段结束(status=OK/WARN/FAIL/SKIP)各回调一次。纯旁路, 不参与任何判定逻辑。
@@ -896,6 +909,138 @@ class QueryAgent:
         new_plan = llm_json(PLAN_SYS, user, self.api_key)
         self._stage("生成查询计划", "WARN", "根据检查结果自动修正计划(一次)")
         return new_plan
+
+    # ---- 4c 实体识别与校验(M13: 命题五要素之「实体」) ----
+    @staticmethod
+    def _aliases_of(spec: dict) -> list[str]:
+        raw = spec.get("aliases")
+        return [str(a).strip() for a in raw if str(a).strip()] if isinstance(raw, list) else []
+
+    def _entity_hint(self) -> str:
+        """(只作诊断用)渲染实体词表的可读文本, **刻意不拼进任何提示词**。
+
+        起因: 最初把词表拼进计划提示词, 小样本(S09/S10/C08 各 2 次)看起来会带动模型多 JOIN 承载表;
+        但去掉提示词复查时同一 JOIN 变体仍然出现 ⇒ 判定那是 LLM 固有抖动, 不能归因于词表。
+        仍然选择不拼: 这样"实体识别不影响计划"成为可断言的不变量(ci_check 断言注入前后提示词逐字相同),
+        不必靠抽样去论证"没有影响"。
+        """
+        if not self.entity_vocab:
+            return ""
+        return "\n".join(f"- {name}: 承载表 {str(spec.get('table', '')).strip()}, "
+                         f"关联键 {str(spec.get('key', '')).strip()}, "
+                         f"别名/同义词: {'、'.join(self._aliases_of(spec)) or '无'}"
+                         for name, spec in self.entity_vocab.items())
+
+    def _extract_entities(self, question: str, plan: dict) -> list[dict]:
+        """程序化抽取实体(与提示词的自报互为对照):
+        explicit = 问题原文命中词表别名; implied = 计划用到的表经词表反查。词表未注入时空列表。"""
+        out: list[dict] = []
+        seen: set[str] = set()
+        for name, spec in self.entity_vocab.items():
+            hit = next((a for a in self._aliases_of(spec) if a in (question or "")), "")
+            if hit:
+                out.append({"name": name, "table": str(spec.get("table", "")).strip(),
+                            "key": str(spec.get("key", "")).strip(),
+                            "evidence": f"问题原文命中别名「{hit}」", "source": "explicit"})
+                seen.add(name)
+        for t in (plan.get("tables") or []):
+            rev = self._entity_by_table.get(str(t))
+            if rev and rev[0] not in seen:
+                out.append({"name": rev[0], "table": str(t), "key": rev[1],
+                            "evidence": f"计划用到承载表 {t}", "source": "implied"})
+                seen.add(rev[0])
+        return out
+
+    def _enforce_entity_contract(self, question: str, plan: dict) -> dict:
+        """M13 实体契约程序化兜底(与 _enforce_output_contract 同套路, 不调 LLM):
+        只采信「词表里有的、且真的落到本次计划里」的声明(承载表在 plan.tables, 或关联键出现在计划文本中),
+        source 按问题原文是否命中别名重新裁定(不采信模型自报); 丢弃的声明记入 entities_notes。"""
+        if not self.entity_vocab:
+            return plan
+        claimed = plan.get("entities") if isinstance(plan.get("entities"), list) else []
+        merged: list[dict] = []
+        dropped: list[str] = []
+        seen: set[str] = set()
+        tables = [str(t) for t in (plan.get("tables") or [])]
+        # 判据用的计划文本要排除 entities/entities_notes 本身, 否则实体项里的 key 会自证"已落到计划里"
+        ground = json.dumps({k: v for k, v in plan.items()
+                             if k not in ("entities", "entities_notes")}, ensure_ascii=False)
+        for e in claimed:
+            if not isinstance(e, dict):
+                continue
+            name = str(e.get("name", "")).strip()
+            spec = self.entity_vocab.get(name)
+            if not name or name in seen:
+                continue
+            if not spec:  # 词表外的实体名: 不采信(防模型臆造实体)
+                dropped.append(f"{name}: 不在注入的实体词表里")
+                continue
+            tbl = str(spec.get("table", "")).strip()
+            key = str(spec.get("key", "")).strip()
+            if tbl not in tables and (not key or key not in ground):
+                dropped.append(f"{name}: 承载表 {tbl} 未落到本次计划里")
+                continue
+            hit = any(a in (question or "") for a in self._aliases_of(spec))
+            merged.append({"name": name, "table": tbl, "key": key,
+                           "evidence": str(e.get("evidence", "")).strip() or "计划声明的实体",
+                           "source": "explicit" if hit else "implied"})
+            seen.add(name)
+        for e in self._extract_entities(question, plan):
+            if e["name"] not in seen:
+                merged.append(e)
+                seen.add(e["name"])
+        new_plan = dict(plan)
+        new_plan["entities"] = merged
+        new_plan["entities_covered"] = bool(merged)
+        if dropped:
+            new_plan["entities_notes"] = dropped
+        return new_plan
+
+    def _check_entities(self, question: str, plan: dict) -> tuple[bool, list[str]]:
+        """M13 程序化校验(五项, 与 _check_plan 同风格): 承载表 / 关联键 / 证据 / 漏识别 / 覆盖声明。"""
+        issues: list[str] = []
+        ents = plan.get("entities") if isinstance(plan.get("entities"), list) else []
+        tables = [str(t) for t in (plan.get("tables") or [])]
+        # 判据用的计划文本排除 entities/entities_notes 本身(否则实体项里的 key 会自证"已落到计划里")
+        ground = json.dumps({k: v for k, v in plan.items()
+                             if k not in ("entities", "entities_notes")}, ensure_ascii=False)
+        for e in ents:
+            if not isinstance(e, dict):
+                issues.append(f"实体项不是对象: {e!r}")
+                continue
+            name = str(e.get("name", "")).strip() or "(未命名)"
+            tbl = str(e.get("table", "")).strip()
+            key = str(e.get("key", "")).strip()
+            src = str(e.get("source", "")).strip()
+            # a. 承载表必须真实存在, 且实体要真的落在计划里(表在 plan.tables, 或关联键出现在计划文本中)
+            if tbl not in self.meta:
+                issues.append(f"实体「{name}」的承载表不存在: {tbl or '(空)'}")
+            elif tbl not in tables and (not key or key not in ground):
+                issues.append(f"实体「{name}」未落到计划里: 承载表 {tbl} 不在 plan.tables, "
+                              f"关联键 {key} 也未出现在计划中")
+            # b. 关联键必须是承载表的真实列
+            if not key:
+                issues.append(f"实体「{name}」缺少关联键 key")
+            elif tbl in self.meta and key not in self.meta[tbl]:
+                issues.append(f"实体「{name}」的关联键 {tbl}.{key} 不是真实列")
+            # c. 标了 explicit 就必须在问题原文里命中它的别名(禁止把隐含当成明示)
+            if src == "explicit":
+                spec = self.entity_vocab.get(name) or {}
+                if not any(a in (question or "") for a in self._aliases_of(spec)):
+                    issues.append(f"实体「{name}」标为 explicit, 但问题原文里找不到它的别名")
+            elif src != "implied":
+                issues.append(f"实体「{name}」的 source 非法: {src or '(空)'}")
+        # d. 漏识别: 程序化抽取得到的实体必须都在 entities 里
+        got = {str(e.get("name", "")).strip() for e in ents if isinstance(e, dict)}
+        for e in self._extract_entities(question, plan):
+            if e["name"] not in got:
+                issues.append(f"漏识别实体「{e['name']}」: {e['evidence']}")
+        # e. 覆盖声明必须与实体列表一致
+        if not ents and plan.get("entities_covered") is not False:
+            issues.append("实体列表为空, 计划必须显式声明 entities_covered=false")
+        if ents and plan.get("entities_covered") is False:
+            issues.append("已产出实体, entities_covered 不应为 false")
+        return (not issues), issues
 
     # ---- 5 生成 SQL ----
     @staticmethod
@@ -1219,6 +1364,22 @@ class QueryAgent:
             if not ok:
                 plan = self._safe_stage("生成查询计划", self._replan, u, r, plan, issues)
                 ok, issues = self._check_plan(u, r, plan)
+            # 4c M13 实体识别与校验(词表未注入时整段跳过: 提示词/计划/Trace 与以前一致)
+            if self.entity_vocab:
+                self._begin_stage("识别实体")
+                plan = self._enforce_entity_contract(question, plan)
+                ok_e, issues_e = self._check_entities(question, plan)
+                if not ok_e:
+                    plan = self._safe_stage("生成查询计划", self._replan, u, r, plan, issues_e)
+                    plan = self._enforce_entity_contract(question, plan)
+                    ok_e, issues_e = self._check_entities(question, plan)
+                    if not ok_e:
+                        issues = list(issues) + issues_e
+                ans.entities = list(plan.get("entities") or [])
+                ans.entities_covered = bool(plan.get("entities_covered"))
+                _ents = ", ".join(f"{e['name']}({e['source']}→{e['table']}.{e['key']})"
+                                  for e in ans.entities) or "无"
+                self._stage("识别实体", "OK", f"实体: {_ents}")
             # 5 生成 SQL(M6: 输出列契约程序化兜底后再生成)
             plan = self._enforce_output_contract(u, plan)
             raw_sql = self._safe_stage("生成SQL", self._generate_sql, u, r, plan, issues)
@@ -1330,6 +1491,11 @@ def print_answer(ans: Answer):
     print_table(ans.rows, ans.headers)
     if ans.truncated:
         print(f"(结果超过 {MAX_ROWS} 行, 仅显示前 {MAX_ROWS} 行)")
+    if ans.entities:
+        _zh = {"explicit": "问题直指", "implied": "计划隐含"}
+        print("\n[实体] " + "; ".join(
+            f"{e.get('name')}({_zh.get(e.get('source'), e.get('source'))}, "
+            f"{e.get('table')}.{e.get('key')}, {e.get('evidence')})" for e in ans.entities))
     if ans.explanation:
         print(f"\n[结论]\n{ans.explanation}")
     print(ans.trace.render())

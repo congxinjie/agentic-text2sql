@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "text2sql_demo"))
 sys.path.insert(0, str(ROOT / "benchmark"))
 
 import text2sql  # noqa: E402
-from run_eval import ENTERPRISE_BIZ, SQL_HINTS, SENSITIVE_COLUMNS  # noqa: E402
+from run_eval import ENTERPRISE_BIZ, SQL_HINTS, SENSITIVE_COLUMNS, ENTITIES  # noqa: E402
 
 DB = str(ROOT / "Agentic智能问数在客户营销场景的应用数据集" / "enterprise.db")
 MAX_CLARIFY_ROUNDS = 3
@@ -23,7 +23,7 @@ def build_agent() -> text2sql.QueryAgent:
     """构造企业库 Agent: 库=enterprise.db(只读), 语义=biz_context + sql_hints 注入。"""
     return text2sql.QueryAgent(DB, text2sql.load_api_key(), verbose=False,
                                biz_context=ENTERPRISE_BIZ, sql_hints=SQL_HINTS,
-                               sensitive_columns=SENSITIVE_COLUMNS)
+                               sensitive_columns=SENSITIVE_COLUMNS, entities=ENTITIES)
 
 
 def answer(agent: text2sql.QueryAgent, question: str, pending: dict | None = None) -> dict:
@@ -57,4 +57,6 @@ def answer(agent: text2sql.QueryAgent, question: str, pending: dict | None = Non
             "text": ans.explanation or "(无结论)",
             "payload": {"sql": ans.sql, "headers": ans.headers, "rows": ans.rows,
                         "truncated": ans.truncated, "trace": ans.trace.render(),
+                        "entities": list(getattr(ans, "entities", []) or []),
+                        "entities_covered": bool(getattr(ans, "entities_covered", False)),
                         "elapsed_s": elapsed}}

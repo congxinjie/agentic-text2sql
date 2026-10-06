@@ -129,11 +129,22 @@ RULES_CHANGES = [    "R1 口径启发式: expect_tables 全属于单快照/纯�
     "R8 展示标签/列名别名扩展: 一级分类/二级分类列名别名归一; 分桶边界等价标签归一(<30/[30,50)/≥60 等与中文写法等价)。",
     "R9 llm_chat 调用层重试: 超时/URLError/HTTP 429/5xx 指数退避(1.5s/3s)重试最多 3 次, 不动状态机。",
     "R10 few-shot 口径示例: _generate_sql 按关键词触发注入 1 例(持有→份额 hold_cnt / 增幅→绝对增量 / 科创→LIKE+分公司聚合); 机制在引擎 sql_hints, 内容由评测 harness 注入(不硬编码券商口径)。",
+    "M13 实体识别与校验(**非判定器变更**): 引擎按 harness 注入的词表(ENTITIES)识别「实体」(explicit 问题直指 / implied 计划隐含), 五项程序化校验后才落 Answer.entities; 实体不参与 SQL 组装, 逐题留档在 records[].entities, judge 判定区间与评测口径零改动。",
 ]
 
 # 受限敏感字段(库内真实列名, 由 harness 注入引擎; 引擎只认机制, 不硬编码券商列名)。
 # sor_pty_id 为疑似个人关联标识: 样例数据不外发、SQL 引用被拦截、结果列掩码。
 SENSITIVE_COLUMNS = ["sor_pty_id"]
+
+# M13: 实体词表(注入侧声明"实体名 -> 承载表/关联键/别名"; 引擎只认机制, 不硬编码表名列名)
+ENTITIES = {
+    "客户": {"table": "ads_cust_info_d", "key": "pty_id",
+             "aliases": ["客户", "客户信息", "客户主档", "客户档案", "客户名单"]},
+    "产品": {"table": "dim_product", "key": "prdt_id",
+             "aliases": ["产品", "产品名称", "产品分类", "产品类型", "产品线"]},
+    "营业部": {"table": "dim_branch", "key": "org_id",
+               "aliases": ["营业部", "分支机构", "网点", "营业网点", "所属营业部"]},
+}
 
 # 企业口径语义(隔离在评测脚本内, 不进入 text2sql.py)
 ENTERPRISE_BIZ = """券商客户营销库(2026-Q1 事实 + 客户主档单快照)。
@@ -352,7 +363,7 @@ def main():
     forced_model = os.environ.get("LLM_MODEL", "").strip()
     agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
                        sql_hints=SQL_HINTS, caliber_assertions=CALIBER_ASSERTIONS,
-                       sensitive_columns=SENSITIVE_COLUMNS)
+                       sensitive_columns=SENSITIVE_COLUMNS, entities=ENTITIES)
 
     print(f"评测开始: {len(items)}/{len(all_items)} 问{' (部分运行: 不覆盖基线报告)' if partial else ''}, "
           f"全量 deepseek-chat(空响应实验结论, 双跑取平均)"
@@ -374,6 +385,9 @@ def main():
             rec["error"] = ans.error or ""
             rec["answerable"] = ans.answerable
             rec["needs_clarification"] = list(ans.needs_clarification)
+            # M13: 逐题留档识别出的实体(explicit/implied), 供验收复算
+            rec["entities"] = list(getattr(ans, "entities", []) or [])
+            rec["entities_covered"] = bool(getattr(ans, "entities_covered", False))
             rec["explanation"] = (ans.explanation or "")[:300]
             rec["trace_tail"] = [
                 {"stage": e.stage, "status": e.status} for e in ans.trace.entries[-3:]
@@ -385,6 +399,8 @@ def main():
             rec["error"] = f"{type(ex).__name__}: {ex}"
             rec["answerable"] = True
             rec["needs_clarification"] = []
+            rec["entities"] = []
+            rec["entities_covered"] = False
             rec["explanation"] = ""
             rec["trace_tail"] = []
         judge(rec, meta)
@@ -466,6 +482,18 @@ def main():
     A(f"| P50 | {all_s['p50_ms']/1000:.1f}s | {by_diff['simple']['p50_ms']/1000:.1f}s | {by_diff['medium']['p50_ms']/1000:.1f}s | {by_diff['complex']['p50_ms']/1000:.1f}s |")
     A(f"| P90 | {all_s['p90_ms']/1000:.1f}s | {by_diff['simple']['p90_ms']/1000:.1f}s | {by_diff['medium']['p90_ms']/1000:.1f}s | {by_diff['complex']['p90_ms']/1000:.1f}s |")
     A(f"| MAX | {all_s['max_ms']/1000:.1f}s | {by_diff['simple']['max_ms']/1000:.1f}s | {by_diff['medium']['max_ms']/1000:.1f}s | {by_diff['complex']['max_ms']/1000:.1f}s |")
+    A("")
+    # M13: 实体识别统计(逐题留档在 run JSON 的 records[].entities)
+    _cov = sum(1 for r in records if r.get("entities_covered"))
+    _ent = [e for r in records for e in (r.get("entities") or [])]
+    _ex = sum(1 for e in _ent if e.get("source") == "explicit")
+    _im = sum(1 for e in _ent if e.get("source") == "implied")
+    A("### 1b. 实体识别(M13: 命题五要素之「实体」)")
+    A("")
+    A("| 项 | 值 |")
+    A("|---|---|")
+    A(f"| 识别出实体的题数 | {_cov}/{len(records)} |")
+    A(f"| 实体项总数(explicit 问题直指 / implied 计划隐含) | {len(_ent)} ({_ex} / {_im}) |")
     A("")
     A(f"总耗时:{total_ms/1000:.1f}s({total_ms/60000:.1f} 分钟)")
     A("")
