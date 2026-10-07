@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""自建 40 问基准集 + 程序化闸门(gold_sql 必须真实跑通且非空)。
+"""自建基准集(40 题 + benchmark_ext.json 意图扩展) + 程序化闸门(gold_sql 必须真实跑通且非空)。
 
 用法:
     python benchmark/build_benchmark.py
 输出:
-    benchmark/benchmark.json(40 问, gold_answer 为真实运行结果)
+    benchmark/benchmark.json(合并扩展集, gold_answer 为真实运行结果)
 铁律: 一切答案来自库内真实运行, 禁止估算。
 """
 import json
@@ -197,6 +197,9 @@ def build_entries():
                 "expect_tables": expect_tables,
                 "scenario": "normal",
             })
+    ext = Path(__file__).with_name("benchmark_ext.json")
+    if ext.exists():
+        entries += json.loads(ext.read_text(encoding="utf-8"))["items"]
     return entries
 
 
@@ -241,12 +244,12 @@ def main():
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "db": str(DB),
             "count": len(entries),
-            "note": "40 问自建基准集; gold_sql 已全部真实跑通且非空; Q&A.xlsx 空壳不依赖",
+            "note": f"{len(entries)} 问自建基准集(含意图扩展); gold_sql 已全部真实跑通且非空; Q&A.xlsx 空壳不依赖",
         },
         "items": entries,
     }
     OUT.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"\n[OK] 40 问全部通过闸门, 已写入 {OUT}")
+    print(f"\n[OK] {len(entries)} 问全部通过闸门, 已写入 {OUT}")
 
 
 if __name__ == "__main__":

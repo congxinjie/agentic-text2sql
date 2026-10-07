@@ -1,9 +1,9 @@
 {
  "meta": {
-  "generated_at": "2026-09-05T11:46:14",
-  "db": "C:\\Users\\30818\\programs\\Agentic智能问数在客户营销场景的应用数据集\\enterprise.db",
-  "count": 40,
-  "note": "40 问自建基准集; gold_sql 已全部真实跑通且非空; Q&A.xlsx 空壳不依赖"
+  "generated_at": "2026-10-08T01:23:18",
+  "db": "/Users/congxinjie/Documents/GitHub/agentic-text2sql/Agentic智能问数在客户营销场景的应用数据集/enterprise.db",
+  "count": 46,
+  "note": "46 问自建基准集(含意图扩展); gold_sql 已全部真实跑通且非空; Q&A.xlsx 空壳不依赖"
  },
  "items": [
   {
@@ -2003,6 +2003,280 @@
       "四川分公司",
       "成都******营业部",
       357710.617
+     ]
+    ],
+    "tolerance": 1e-06
+   }
+  },
+  {
+   "id": "T01",
+   "question": "2026 年一季度全库客户买入金额的逐月走势如何?(月份用 YYYYMM 表示)",
+   "difficulty": "medium",
+   "category": "趋势分析",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT substr(data_dt,1,6) AS 月份, ROUND(SUM(buy_amt),2) AS 买入金额 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY substr(data_dt,1,6) ORDER BY 月份",
+   "caliber_notes": "逐月趋势: 月份=substr(data_dt,1,6) 取 YYYYMM; 交易额=buy_amt; 区间 20260101~20260331。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "月份",
+     "买入金额"
+    ],
+    "rows": [
+     [
+      "202601",
+      1136534285.97
+     ],
+     [
+      "202602",
+      512845279.98
+     ],
+     [
+      "202603",
+      676734920.92
+     ]
+    ],
+    "tolerance": 1e-06
+   }
+  },
+  {
+   "id": "T02",
+   "question": "2026 年一季度全库客户交易笔数(买入+卖出)的逐月走势如何?(月份用 YYYYMM 表示)",
+   "difficulty": "medium",
+   "category": "趋势分析",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT substr(data_dt,1,6) AS 月份, SUM(buy_cnt+sell_cnt) AS 交易笔数 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY substr(data_dt,1,6) ORDER BY 月份",
+   "caliber_notes": "逐月趋势: 月份=substr(data_dt,1,6); 交易笔数=buy_cnt+sell_cnt; 区间 20260101~20260331。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "月份",
+     "交易笔数"
+    ],
+    "rows": [
+     [
+      "202601",
+      34416.0
+     ],
+     [
+      "202602",
+      15646.0
+     ],
+     [
+      "202603",
+      25805.0
+     ]
+    ],
+    "tolerance": 1e-06
+   }
+  },
+  {
+   "id": "D01",
+   "question": "列出 2026-03-31 持有开放式基金(一级分类 PT050000)的客户号,最多 20 个",
+   "difficulty": "medium",
+   "category": "明细罗列",
+   "tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "gold_sql": "SELECT DISTINCT h.pty_id AS 客户号 FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.up_prdt_type_id='PT050000' AND h.hold_cnt>0 ORDER BY h.pty_id LIMIT 20",
+   "caliber_notes": "明细: 问'哪些客户'输出客户号 pty_id; 持有=hold_cnt>0; 一级分类用 up_prdt_type_id='PT050000'; 最多 20 个, 按客户号排序。",
+   "expect_time": [
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户号"
+    ],
+    "rows": [
+     [
+      "C000000000000002"
+     ],
+     [
+      "C000000000000003"
+     ],
+     [
+      "C000000000000004"
+     ],
+     [
+      "C000000000000005"
+     ],
+     [
+      "C000000000000006"
+     ],
+     [
+      "C000000000000008"
+     ],
+     [
+      "C000000000000009"
+     ],
+     [
+      "C000000000000010"
+     ],
+     [
+      "C000000000000014"
+     ],
+     [
+      "C000000000000018"
+     ],
+     [
+      "C000000000000019"
+     ],
+     [
+      "C000000000000020"
+     ],
+     [
+      "C000000000000021"
+     ],
+     [
+      "C000000000000022"
+     ],
+     [
+      "C000000000000026"
+     ],
+     [
+      "C000000000000031"
+     ],
+     [
+      "C000000000000033"
+     ],
+     [
+      "C000000000000034"
+     ],
+     [
+      "C000000000000035"
+     ],
+     [
+      "C000000000000036"
+     ]
+    ],
+    "tolerance": 1e-06
+   }
+  },
+  {
+   "id": "D02",
+   "question": "列出 2026-03-31 持有比亚迪相关产品的客户号,最多 20 个",
+   "difficulty": "medium",
+   "category": "明细罗列",
+   "tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "gold_sql": "SELECT DISTINCT h.pty_id AS 客户号 FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.prdt_name LIKE '%比亚迪%' AND h.hold_cnt>0 ORDER BY h.pty_id LIMIT 20",
+   "caliber_notes": "明细: 输出客户号 pty_id; 产品名 LIKE '%比亚迪%'; 持有=hold_cnt>0; 最多 20 个, 按客户号排序。",
+   "expect_time": [
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户号"
+    ],
+    "rows": [
+     [
+      "C000000000000034"
+     ],
+     [
+      "C000000000000103"
+     ],
+     [
+      "C000000000000267"
+     ],
+     [
+      "C000000000000353"
+     ]
+    ],
+    "tolerance": 1e-06
+   }
+  },
+  {
+   "id": "A01",
+   "question": "分析 2026 年一季度全库客户的资金净流入合计(流入-流出)是多少?",
+   "difficulty": "complex",
+   "category": "分析归因",
+   "tables": [
+    "dws_cust_fin_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(cash_in+tran_in+assign_in-cash_out-tran_out-assign_out),2) AS 资金净流入合计 FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331'",
+   "caliber_notes": "分析: 净流入=流入-流出; 流入=cash_in+tran_in+assign_in, 流出=cash_out+tran_out+assign_out; 区间 20260101~20260331。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dws_cust_fin_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "资金净流入合计"
+    ],
+    "rows": [
+     [
+      4742482.14
+     ]
+    ],
+    "tolerance": 1e-06
+   }
+  },
+  {
+   "id": "A02",
+   "question": "分析 2026 年一季度全库客户的买入佣金合计占买入金额的比例是多少?(输出列名用 佣金占比, 保留 6 位小数)",
+   "difficulty": "complex",
+   "category": "分析归因",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(buy_rake)*1.0/SUM(buy_amt),6) AS 佣金占比 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331'",
+   "caliber_notes": "分析: 买入佣金占比=SUM(buy_rake)/SUM(buy_amt); 区间 20260101~20260331; 输出列名用 佣金占比。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "佣金占比"
+    ],
+    "rows": [
+     [
+      0.000184
      ]
     ],
     "tolerance": 1e-06

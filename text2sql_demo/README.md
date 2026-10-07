@@ -67,20 +67,20 @@ agent.run("问题", clarify=True, on_stage=lambda stage, status, detail: print(s
 ```bash
 cd benchmark
 python build_db.py                    # 重建 enterprise.db(纯标准库, 8 张 CSV → SQLite, 行数校验)
-python run_eval.py                    # 单轮全量 40 问评测(全量 deepseek-chat)
+python run_eval.py                    # 单轮全量 46 问评测(全量 deepseek-chat)
 python average_runs.py runs/run_A.json runs/run_B.json   # 双跑平均
 python rejudge.py --backfill runs/run_*.json             # 判定器改动后: 先重判留档并回填
 python run_edge_cases.py               # E1-E9 异常边界用例
 python ui_smoke.py                     # UI 全流程自测(5+1 问)
 ```
 
-- 基准集:benchmark/benchmark.json(40 问,gold_sql 已全量真实跑通闸门)。
+- 基准集:benchmark/benchmark.json(46 问,gold_sql 已全量真实跑通闸门)。
 - 最新双跑:e2e **100%**(M10 复算, 双跑均 40/40;exec 100% / 口径 100% / 幻觉 0% / P50 8.3s),见 docs/评测报告-基线.md 与根 README 的波动披露。
 
 ## 测试
 
 - 引擎回归:此前 4 场景断言(追问分支/失败修复/修复失败终止/阶段异常兜底)+ E1-E9 边界 9/9。
-- 评测:40 问双跑平均 + 判定器重判留档(rejudged_*.json)。
+- 评测:46 问双跑平均 + 判定器重判留档(rejudged_*.json)。
 - UI:app_core.answer 与 UI 同路径,ui_smoke.py 跑简单→复杂+库外拒绝+追问 6 问。
 
 ## FAQ

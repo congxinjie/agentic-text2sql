@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""评测 runner: 40 问基准集真实调用 DeepSeek, 产出逐题明细 + 六指标 + 基线报告。
+"""评测 runner: 自建基准集真实调用 DeepSeek, 产出逐题明细 + 六指标 + 基线报告。
 
 用法:
     cd benchmark && python run_eval.py
@@ -338,7 +338,7 @@ def percentile(sorted_times, p):
 def parse_args(argv):
     """解析命令行参数: 默认全量; --ids 按题号过滤, --limit 限制题数(便于单题迭代)。"""
     import argparse
-    ap = argparse.ArgumentParser(description="评测 runner: 默认全量 40 问")
+    ap = argparse.ArgumentParser(description="评测 runner: 默认全量")
     ap.add_argument("--ids", help="逗号分隔题号, 如 C02,C07; 缺省=全量")
     ap.add_argument("--limit", type=int, default=None, help="只跑前 N 题; 缺省=不限")
     ap.add_argument("--no-report", action="store_true", help="全量运行也不覆盖 docs/评测报告-基线.md(稳定性多轮跑批用); 缺省=覆盖")
@@ -473,7 +473,10 @@ def main():
     A("> 模型:引擎默认(deepseek-v4-flash 可经 LLM_MODEL 覆盖);全部数字来自真实运行,禁止估算")
     A("> 隐私:受限字段(sensitive_columns, 如 sor_pty_id)样例数据不外发、SQL 引用拦截、结果列掩码;真实数据建议 --sample-rows 0")
     A("")
-    A("## 1. 指标汇总(40 问 = 简单14/中等14/复杂12)")
+    _ns = sum(1 for r in records if r["difficulty"] == "simple")
+    _nm = sum(1 for r in records if r["difficulty"] == "medium")
+    _nc = sum(1 for r in records if r["difficulty"] == "complex")
+    A(f"## 1. 指标汇总({len(records)} 问 = 简单{_ns}/中等{_nm}/复杂{_nc})")
     A("")
     A("| 指标 | 全部 | 简单 | 中等 | 复杂 |")
     A("|---|---|---|---|---|")
@@ -541,7 +544,7 @@ def main():
                 A(f"- 明细: {'; '.join(r['halluc_detail'])[:300]}")
             A("")
     else:
-        A("无(全部 40 问端到端通过)")
+        A(f"无(全部 {len(records)} 问端到端通过)")
     A("")
     A("## 4. 规则变更记录(相对 M2 基线)")
     A("")
@@ -553,7 +556,7 @@ def main():
     A(f"- 端到端准确率 **{all_s['e2e_rate']}%**(目标 ≥90%),幻觉率 {all_s['hallucination_rate']}%。")
     A("- 复现: `cd benchmark && python run_eval.py`(需 text2sql_demo/.env.local 的 LLM_API_KEY)。")
     A("- 说明: 口径正确率为规则启发式(必需表+必需时间字面量, 单快照/纯维度表豁免);结果比对按 docs/评测口径定义.md(数值以 gold 小数位数为准先四舍五入再比, 分组标签去'岁'规范化, 容差 1e-6 兜底)。")
-    A("- E1-E9 异常边界场景与 300/400 码不可答问题未计入本 40 问, 见 edge_cases 运行结果。")
+    A("- E1-E9 异常边界场景与 300/400 码不可答问题未计入本 {len(records)} 问, 见 edge_cases 运行结果。")
     REPORT.write_text("\n".join(lines), encoding="utf-8")
     print(f"报告已写: {REPORT}")
 
