@@ -49,7 +49,7 @@ have_gh() { command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; }
 # 公开仓库: 匿名直链下载 release 附件(无需 gh/token); 失败则删除半成品, 返回非 0。
 curl_public_asset() {
   local name="$1" out="$2" tmp="$2.part"
-  if curl -fsSL -o "$tmp" "https://github.com/$REPO/releases/download/$TAG/$name"; then
+  if curl -fsSL -C - --connect-timeout 15 -o "$tmp" "https://github.com/$REPO/releases/download/$TAG/$name"; then
     mv -f "$tmp" "$out"; return 0
   fi
   rm -f "$tmp"; return 1
