@@ -38,6 +38,7 @@ import os
 import re
 import sqlite3
 import sql_ast
+import sql_plan
 import sys
 import time
 import unicodedata
@@ -525,6 +526,7 @@ class Answer:
     # M13: 识别出的业务实体(词表未注入时恒为空)与"本次是否覆盖了实体"的显式声明
     entities: list = field(default_factory=list)
     entities_covered: bool = False
+    query_plan: dict = field(default_factory=dict)  # 执行计划分析(全表扫描/索引命中)
 
 
 # ================= 各阶段 Prompt =================
@@ -641,6 +643,7 @@ class QueryAgent:
         self.schema = build_schema(db_path, self.sample_rows, self.sensitive_columns)
         self.trace = Trace()
         self._stage_idx = 0
+        self._query_plan = {}
         LOG.info("引擎初始化: 库=%s 表=%s 样例数据行数=%d 受限字段数=%d 模型=%s",
                  Path(db_path).name, ",".join(sorted(self.meta)), self.sample_rows,
                  len(self.sensitive_columns), MODEL)
@@ -1233,9 +1236,16 @@ class QueryAgent:
         self._begin_stage("执行")
         headers, rows, truncated = run_query(self.db_path, sql)
         headers, rows = self._mask_sensitive_cells(headers, rows)
+        try:
+            self._query_plan = sql_plan.analyze(self.db_path, sql)
+        except Exception:
+            self._query_plan = {}
         # M9: 只记 SQL 长度/结果行数/列数, 绝不记 SQL 正文与数据行内容
         LOG.info("[执行] SQL 长度=%d 结果行数=%d 列数=%d 截断=%s",
                  len(sql), len(rows), len(headers), truncated)
+        LOG.info("[查询计划] 全表扫描=%d 索引扫描=%d 索引搜索=%d 临时B树=%s",
+                 self._query_plan.get("n_full_scan", 0), self._query_plan.get("n_index_scan", 0),
+                 self._query_plan.get("n_search", 0), self._query_plan.get("temp_btree", False))
         self._stage("执行", "OK",
                     f"只读执行成功: {len(rows)} 行" + ("(已截断)" if truncated else ""))
         return headers, rows, truncated
@@ -1305,6 +1315,8 @@ class QueryAgent:
             notes.append("结果仅 1 行, 可直接给出结论")
         if truncated:
             notes.append(f"结果超过 {MAX_ROWS} 行, 仅展示前 {MAX_ROWS} 行, 解释时需注明")
+        if self._query_plan.get("n_full_scan"):
+            notes.append("执行计划含全表扫描(该过滤列无索引)")
         # M6: 结果阶段程序化校验——计划声明的输出列必须都在结果表头
         if plan:
             declared = self._declared_cols(plan)
@@ -1367,6 +1379,7 @@ class QueryAgent:
         self._stage_idx = 1
         self.trace = Trace()
         ans = Answer(question=question)
+        self._query_plan = {}
         # M9: 只记问题长度与追问模式, 不记问题正文(防止问题里夹带客户号等数据)
         LOG.info("[问答开始] 问题长度=%d 追问模式=%s 样例行数=%d",
                  len(question), clarify, self.sample_rows)
@@ -1465,6 +1478,7 @@ class QueryAgent:
                 ans.error = f"SQL 执行失败且自动修复未成功: {e2}"
                 return ans
         headers, rows = self._project_result(headers, rows, plan)
+        ans.query_plan = self._query_plan
         ans.headers, ans.rows, ans.truncated = headers, rows, truncated
 
         # 8 检查结果(M6: 计划声明的输出列缺失 -> 复用修复机制重试一次)
@@ -1478,6 +1492,7 @@ class QueryAgent:
                 ans.sql = sql
                 headers, rows, truncated = self._execute(sql)
                 headers, rows = self._project_result(headers, rows, plan)
+                ans.query_plan = self._query_plan
                 ans.headers, ans.rows, ans.truncated = headers, rows, truncated
                 notes, _ = self._check_result(headers, rows, truncated, plan)
             except (sqlite3.Error, ValueError) as e:
@@ -1546,6 +1561,9 @@ def print_answer(ans: Answer):
     print(f"\n[SQL]\n{ans.sql}\n")
     print("[查询结果]")
     print_table(ans.rows, ans.headers)
+    _qp = getattr(ans, "query_plan", {}) or {}
+    if _qp:
+        print("[执行计划] 全表扫描 " + str(_qp.get("n_full_scan", 0)) + " · 索引扫描 " + str(_qp.get("n_index_scan", 0)) + " · 索引搜索 " + str(_qp.get("n_search", 0)))
     if ans.truncated:
         print(f"(结果超过 {MAX_ROWS} 行, 仅显示前 {MAX_ROWS} 行)")
     if ans.entities:

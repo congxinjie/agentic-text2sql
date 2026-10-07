@@ -388,6 +388,7 @@ def main():
             # M13: 逐题留档识别出的实体(explicit/implied), 供验收复算
             rec["entities"] = list(getattr(ans, "entities", []) or [])
             rec["entities_covered"] = bool(getattr(ans, "entities_covered", False))
+            rec["query_plan"] = getattr(ans, "query_plan", {}) or {}
             rec["intent"] = getattr(ans, "intent", "")
             rec["repaired"] = any("修复" in str(e.detail) for e in ans.trace.entries)
             rec["empty_result"] = bool(ans.headers) and not ans.rows
@@ -404,6 +405,7 @@ def main():
             rec["needs_clarification"] = []
             rec["entities"] = []
             rec["entities_covered"] = False
+            rec["query_plan"] = {}
             rec["intent"] = ""
             rec["repaired"] = False
             rec["empty_result"] = False
@@ -518,6 +520,19 @@ def main():
     A(f"| 空结果题数 | {_emp} |")
     A("| E1-E9 异常边界 | 9/9(见 runs/edge_cases_run_*.json) |")
     A("")
+    if any(r.get("query_plan") for r in records):
+        _qp = [r.get("query_plan") or {} for r in records]
+        _used = sum(1 for q in _qp if q.get("used_index"))
+        _full = sum(1 for q in _qp if q.get("n_full_scan"))
+        _temp = sum(1 for q in _qp if q.get("temp_btree"))
+        A("### 1d. 查询计划与索引(EXPLAIN QUERY PLAN)")
+        A("")
+        A("| 项 | 值 |")
+        A("|---|---|")
+        A(f"| 命中索引的题数(索引搜索/索引扫描) | {_used}/{len(records)} |")
+        A(f"| 含全表扫描的题数 | {_full} |")
+        A(f"| 含临时 B 树的题数 | {_temp} |")
+        A("")
     A(f"总耗时:{total_ms/1000:.1f}s({total_ms/60000:.1f} 分钟)")
     A("")
     A("## 2. 逐题结果")

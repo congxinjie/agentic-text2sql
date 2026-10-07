@@ -11,7 +11,7 @@
 
 退出码: 全部通过 = 0; 任一 FAIL = 1。
 
-10 项检查与 M11 工作流步骤一一对应:
+11 项检查与 M11 工作流步骤一一对应:
     1 syntax       语法编译            所有 *.py 逐个 compile()
     2 deps         导入与无第三方包断言  加载引擎与演示层后 sys.modules 只多出标准库
     3 decouple     引擎解耦断言        引擎/演示层不出现券商域词(词表 + enterprise_biz.json 抽取)
@@ -22,6 +22,7 @@
     8 privacy      受限字段屏蔽断言      合成库 + 注入敏感列: 样例不外发/SQL 直引与别名拦截/结果掩码, 并含负对照
     9 entities     实体识别与校验断言    注入实体词表: 识别与五项校验通过; 四个负对照(错表/错列/假 explicit/漏识别)均变红
     10 sql-ast      SQL 编译器前端断言    词法+语句结构 AST: 金标全可解析; 错表/错列/WITH 后写语句负对照均被拦
+    11 query-plan   查询计划与索引断言    EXPLAIN QUERY PLAN: 全表扫描/索引搜索/覆盖索引分类 + 引擎接入 + 负对照
 
 为什么这些能进 CI: 它们都不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网。
 评测(run_eval.py)与边界用例(run_edge_cases.py)刻意不在 CI 内 —— 见 README 的"CI / 自动校验"一节。
@@ -175,7 +176,7 @@ def check_syntax():
 
 # ---------------- 2. 导入与"无第三方包"断言 ----------------
 
-ALLOWED_EXTRA = {"text2sql", "sql_ast", "demo", "demo.server", "__main__"}
+ALLOWED_EXTRA = {"text2sql", "sql_ast", "sql_plan", "demo", "demo.server", "__main__"}
 
 
 def _module_allowed(name: str) -> bool:
@@ -790,6 +791,48 @@ def check_sql_ast():
     return True, f"{len(items)} 道金标全可解析; 错表/错列/WITH 后写语句均被拦; 输出列投影裁剪正确"
 
 
+def check_query_plan():
+    """查询计划/索引断言: EXPLAIN QUERY PLAN 分类 + 引擎接入 + 负对照。"""
+    mod = get_engine()
+    problems = []
+    with tempfile.TemporaryDirectory(prefix="ci_plan_") as tmp:
+        db = Path(tmp) / "plan.db"
+        con = sqlite3.connect(str(db))
+        con.executescript("CREATE TABLE t(id INTEGER PRIMARY KEY, name TEXT, v REAL); CREATE INDEX idx_t_name ON t(name);")
+        con.executemany("INSERT INTO t VALUES (?,?,?)", [(i, "n%03d" % i, float(i)) for i in range(1, 201)])
+        con.commit()
+        con.close()
+        pm = mod.sql_plan
+        idx = pm.list_indexes(str(db))
+        if "idx_t_name" not in (idx.get("t") or []):
+            problems.append(f"索引发现失败: {idx}")
+        pk = pm.analyze(str(db), "SELECT * FROM t WHERE id=1")
+        if pk.get("n_search", 0) < 1 or not pk.get("used_index"):
+            _d = pk.get("details")
+            problems.append(f"主键查询应命中索引: {_d}")
+        full = pm.analyze(str(db), "SELECT * FROM t")
+        if full.get("n_full_scan", 0) < 1 or full.get("used_index"):
+            _d = full.get("details")
+            problems.append(f"无过滤查询应为全表扫描: {_d}")
+        un = pm.analyze(str(db), "SELECT * FROM t WHERE v=1")
+        if un.get("n_full_scan", 0) < 1 or un.get("used_index"):
+            _d = un.get("details")
+            problems.append(f"未索引列过滤应为全表扫描(负对照): {_d}")
+        cov = pm.analyze(str(db), "SELECT name FROM t WHERE name LIKE \x27n1%\x27")
+        if cov.get("n_index_scan", 0) < 1 or not cov.get("used_index"):
+            _d = cov.get("details")
+            problems.append(f"覆盖索引扫描应识别为索引: {_d}")
+        agent = mod.QueryAgent(str(db), "ci-stub-key", verbose=False, sample_rows=0)
+        agent._execute("SELECT id FROM t WHERE id=1")
+        if (agent._query_plan or {}).get("n_search", 0) < 1:
+            problems.append(f"引擎未接入查询计划: {agent._query_plan}")
+    if problems:
+        for p in problems:
+            print(f"      {p}")
+        return False, f"查询计划断言失败 {len(problems)} 处"
+    return True, "索引发现/主键 SEARCH/全表 SCAN/未索引 SCAN(负对照)/覆盖索引 SCAN 分类正确; 引擎已接入"
+
+
 CHECKS = [
     ("syntax", "语法编译", check_syntax),
     ("deps", "导入与无第三方包断言", check_deps),
@@ -801,6 +844,7 @@ CHECKS = [
     ("privacy", "受限字段屏蔽断言", check_privacy),
     ("entities", "实体识别与校验断言", check_entities),
     ("sql-ast", "SQL 编译器前端断言", check_sql_ast),
+    ("query-plan", "查询计划与索引断言", check_query_plan),
 ]
 
 

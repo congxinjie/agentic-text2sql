@@ -59,5 +59,6 @@ def answer(agent: text2sql.QueryAgent, question: str, pending: dict | None = Non
                         "truncated": ans.truncated, "trace": ans.trace.render(),
                         "intent": getattr(ans, "intent", ""),
                         "entities": list(getattr(ans, "entities", []) or []),
+                        "query_plan": getattr(ans, "query_plan", {}) or {},
                         "entities_covered": bool(getattr(ans, "entities_covered", False)),
                         "elapsed_s": elapsed}}

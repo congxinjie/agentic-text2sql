@@ -130,7 +130,7 @@ python3 ci_check.py        # 逐项打印 OK/FAIL；任一 FAIL 退出码非 0
 
 CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-latest` + 系统自带 `python3`，
 **不做任何第三方包安装**（零 pip、零 requirements）、**不调用真实 LLM**（一律桩）、工作流里无任何密钥，
-超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 10 项（`ci_check.py` 的检查项 id 一一对应）：
+超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 11 项（`ci_check.py` 的检查项 id 一一对应）：
 
 | # | 检查（`python3 ci_check.py --only <id>`） | 内容 |
 |---|---|---|
@@ -144,6 +144,7 @@ CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-la
 | 8 | `privacy` | 合成库 + 注入受限字段：断言样例数据不外发、SQL 直引/别名引用被拦截、结果列掩码，并带"不注入则原值可见"的负对照 |
 | 9 | `entities` | 合成库 + 注入实体词表：断言实体识别（问题直指/计划隐含 + 程序化抽取）与五项校验通过，并含四个负对照（错表/错列/假 explicit/漏识别） |
 | 10 | `sql-ast` | 纯标准库 SQL 编译器前端：46 道金标全部可解析且判为只读；负对照（错表/错列/`WITH` 后写语句）均被拦；并按计划声明列做输出列投影裁剪 |
+| 11 | `query-plan` | `EXPLAIN QUERY PLAN`：索引发现、主键 SEARCH、全表 SCAN、未索引列 SCAN（负对照）、覆盖索引 SCAN 分类正确，并断言引擎已接入查询计划 |
 
 **刻意不跑什么（边界写清楚）**：`benchmark/run_eval.py`（46 问全量评测）与 `benchmark/run_edge_cases.py`
 （E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，不入 git，
@@ -157,7 +158,7 @@ CI 刻意保持「零联网、无密钥、≤ 5 分钟」，不去下载 151 MB 
 **本地跑同一套检查**（Windows / Linux 同一条命令；脚本用自身文件位置解析仓库根，与 cwd、盘符、系统无关）：
 
 ```bash
-python3 ci_check.py                  # 10 项全跑，全绿退出码 0
+python3 ci_check.py                  # 11 项全跑，全绿退出码 0
 python3 ci_check.py --only judge     # 只跑某一项（与 CI 的单步完全一致）
 python3 ci_check.py --only deps,judge
 python3 ci_check.py --list           # 列出检查项 id
