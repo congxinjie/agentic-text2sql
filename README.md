@@ -114,7 +114,7 @@ python3 ci_check.py        # 逐项打印 OK/FAIL；任一 FAIL 退出码非 0
 
 CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-latest` + 系统自带 `python3`，
 **不做任何第三方包安装**（零 pip、零 requirements）、**不调用真实 LLM**（一律桩）、工作流里无任何密钥，
-超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 8 项（`ci_check.py` 的检查项 id 一一对应）：
+超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 9 项（`ci_check.py` 的检查项 id 一一对应）：
 
 | # | 检查（`python3 ci_check.py --only <id>`） | 内容 |
 |---|---|---|
@@ -126,6 +126,7 @@ CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-la
 | 6 | `synth-smoke` | `sqlite3` 现场建 3 张小表 + 桩 LLM 驱动引擎走完整链路（理解→检索→计划→检查→SQL→安全校验→执行→检查结果→解释），**零 API 调用** |
 | 7 | `sse` | 用合成库起 `demo/server.py`：`/api/health` 返回 200，`/api/ask/stream` 流里既有阶段事件也有 `done` 事件（与 `POST /api/ask` 同源字段） |
 | 8 | `privacy` | 合成库 + 注入受限字段：断言样例数据不外发、SQL 直引/别名引用被拦截、结果列掩码，并带"不注入则原值可见"的负对照 |
+| 9 | `entities` | 合成库 + 注入实体词表：断言实体识别（问题直指/计划隐含 + 程序化抽取）与五项校验通过，并含四个负对照（错表/错列/假 explicit/漏识别） |
 
 **刻意不跑什么（边界写清楚）**：`benchmark/run_eval.py`（40 问全量评测）与 `benchmark/run_edge_cases.py`
 （E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，不入 git，
@@ -139,7 +140,7 @@ CI 刻意保持「零联网、无密钥、≤ 5 分钟」，不去下载 151 MB 
 **本地跑同一套检查**（Windows / Linux 同一条命令；脚本用自身文件位置解析仓库根，与 cwd、盘符、系统无关）：
 
 ```bash
-python3 ci_check.py                  # 8 项全跑，全绿退出码 0
+python3 ci_check.py                  # 9 项全跑，全绿退出码 0
 python3 ci_check.py --only judge     # 只跑某一项（与 CI 的单步完全一致）
 python3 ci_check.py --only deps,judge
 python3 ci_check.py --list           # 列出检查项 id

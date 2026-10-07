@@ -11,7 +11,7 @@
 
 退出码: 全部通过 = 0; 任一 FAIL = 1。
 
-8 项检查与 M11 工作流步骤一一对应:
+9 项检查与 M11 工作流步骤一一对应:
     1 syntax       语法编译            所有 *.py 逐个 compile()
     2 deps         导入与无第三方包断言  加载引擎与演示层后 sys.modules 只多出标准库
     3 decouple     引擎解耦断言        引擎/演示层不出现券商域词(词表 + enterprise_biz.json 抽取)
@@ -20,6 +20,7 @@
     6 synth-smoke  合成库端到端冒烟     sqlite3 现场建 3 张小表 + 桩 LLM 驱动引擎走完整链路
     7 sse          SSE 接口契约冒烟      用合成库起 demo/server.py, 断言 /api/health 200 与阶段/done 事件
     8 privacy      受限字段屏蔽断言      合成库 + 注入敏感列: 样例不外发/SQL 直引与别名拦截/结果掩码, 并含负对照
+    9 entities     实体识别与校验断言    注入实体词表: 识别与五项校验通过; 四个负对照(错表/错列/假 explicit/漏识别)均变红
 
 为什么这些能进 CI: 它们都不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网。
 评测(run_eval.py)与边界用例(run_edge_cases.py)刻意不在 CI 内 —— 见 README 的"CI / 自动校验"一节。

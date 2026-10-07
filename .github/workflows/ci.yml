@@ -74,3 +74,7 @@ jobs:
       # 步骤 ⑧受限字段屏蔽断言(样例不外发 + SQL 拦截 + 结果掩码, 含负对照)
       - name: ⑧ 受限字段屏蔽断言
         run: python3 ci_check.py --only privacy
+
+      # 步骤 ⑨实体识别与校验断言(识别 + 五项校验 + 四个负对照)
+      - name: ⑨ 实体识别与校验断言
+        run: python3 ci_check.py --only entities
