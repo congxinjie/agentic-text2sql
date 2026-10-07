@@ -48,7 +48,7 @@ def allowed_module(name: str) -> bool:
     top = name.split(".")[0]
     if top in sys.stdlib_module_names:
         return True
-    return name in {"demo", "demo.server", "text2sql", "__main__"}
+    return name in {"demo", "demo.server", "text2sql", "sql_ast", "__main__"}
 
 
 def extract_domain_tokens(biz: dict) -> set:

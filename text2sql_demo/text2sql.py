@@ -37,6 +37,7 @@ import logging
 import os
 import re
 import sqlite3
+import sql_ast
 import sys
 import time
 import unicodedata
@@ -1199,10 +1200,30 @@ class QueryAgent:
             masked.append(tuple(row))
         return headers, masked
 
+    def _ast_check(self, sql: str) -> None:
+        """编译器前端: 语句结构 + 真实表/列语义校验(AST 级)。"""
+        try:
+            stmt = sql_ast.parse(sql)
+        except sql_ast.SqlParseError as e:
+            raise ValueError(f"SQL 结构校验失败: {e}")
+        if not stmt.read_only:
+            raise ValueError(f"非只读语句被拒绝(AST): kind={stmt.kind}")
+        meta = {t.lower(): [c.lower() for c in cols] for t, cols in self.meta.items()}
+        for t in stmt.tables:
+            if t.lower() not in meta:
+                raise ValueError(f"SQL 引用了不存在的表: {t}")
+        for tbl, col in stmt.refs:
+            if not tbl or col == "*":
+                continue
+            cols = meta.get(tbl.lower())
+            if cols is not None and col.lower() not in cols:
+                raise ValueError(f"SQL 引用了不存在的列: {tbl}.{col}")
+
     def _validate(self, sql: str) -> str:
         self._begin_stage("安全校验")
         cleaned = validate_sql(sql)
         self._reject_sensitive(cleaned)
+        self._ast_check(cleaned)
         self._stage("安全校验", "OK",
                     "单条只读语句 SELECT/WITH/EXPLAIN, 注释已剥离, 拒绝多语句; 受限字段已拦截")
         return cleaned
@@ -1218,6 +1239,27 @@ class QueryAgent:
         self._stage("执行", "OK",
                     f"只读执行成功: {len(rows)} 行" + ("(已截断)" if truncated else ""))
         return headers, rows, truncated
+
+    def _project_result(self, headers: list, rows: list, plan: dict):
+        """输出列契约(结果层): 计划声明列齐全但结果多出列时, 裁剪到声明列(确定性)。"""
+        declared = self._declared_cols(plan) if plan else []
+        if not declared or not headers:
+            return headers, rows
+        idx = []
+        for c in declared:
+            k = None
+            for j, h in enumerate(headers):
+                a = str(c).replace(" ", "").strip()
+                b = str(h).replace(" ", "").strip()
+                if a == b or (len(a) >= 3 and a in b) or (len(b) >= 3 and b in a):
+                    k = j
+                    break
+            if k is None or k in idx:
+                return headers, rows
+            idx.append(k)
+        if len(idx) >= len(headers):
+            return headers, rows
+        return [headers[i] for i in idx], [tuple(r[i] for i in idx) for r in rows]
 
     # ---- 7b SQL 修复一次(执行失败与结果列缺失共用同一修复机制) ----
     def _repair_sql(self, sql: str, problem: object, u: Understanding, plan: dict,
@@ -1422,6 +1464,7 @@ class QueryAgent:
                 self._stage("执行", "FAIL", f"修复后仍失败: {e2}")
                 ans.error = f"SQL 执行失败且自动修复未成功: {e2}"
                 return ans
+        headers, rows = self._project_result(headers, rows, plan)
         ans.headers, ans.rows, ans.truncated = headers, rows, truncated
 
         # 8 检查结果(M6: 计划声明的输出列缺失 -> 复用修复机制重试一次)
@@ -1434,6 +1477,7 @@ class QueryAgent:
                     u, plan, stage_title="检查结果")
                 ans.sql = sql
                 headers, rows, truncated = self._execute(sql)
+                headers, rows = self._project_result(headers, rows, plan)
                 ans.headers, ans.rows, ans.truncated = headers, rows, truncated
                 notes, _ = self._check_result(headers, rows, truncated, plan)
             except (sqlite3.Error, ValueError) as e:

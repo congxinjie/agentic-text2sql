@@ -1,0 +1,5369 @@
+{
+ "generated_at": "2026-10-08T02:12:01",
+ "db": "/Users/congxinjie/Documents/GitHub/agentic-text2sql/Agentic智能问数在客户营销场景的应用数据集/enterprise.db",
+ "benchmark": "/Users/congxinjie/Documents/GitHub/agentic-text2sql/benchmark/benchmark.json",
+ "total_elapsed_ms": 327659,
+ "metrics": {
+  "all": {
+   "n": 46,
+   "exec_rate": 100.0,
+   "result_rate": 100.0,
+   "caliber_rate": 100.0,
+   "e2e_rate": 100.0,
+   "hallucination_rate": 0.0,
+   "p50_ms": 7064,
+   "p90_ms": 9063,
+   "max_ms": 12593
+  },
+  "by_difficulty": {
+   "simple": {
+    "n": 14,
+    "exec_rate": 100.0,
+    "result_rate": 100.0,
+    "caliber_rate": 100.0,
+    "e2e_rate": 100.0,
+    "hallucination_rate": 0.0,
+    "p50_ms": 6497,
+    "p90_ms": 8602,
+    "max_ms": 9063
+   },
+   "medium": {
+    "n": 18,
+    "exec_rate": 100.0,
+    "result_rate": 100.0,
+    "caliber_rate": 100.0,
+    "e2e_rate": 100.0,
+    "hallucination_rate": 0.0,
+    "p50_ms": 6810,
+    "p90_ms": 8605,
+    "max_ms": 8803
+   },
+   "complex": {
+    "n": 14,
+    "exec_rate": 100.0,
+    "result_rate": 100.0,
+    "caliber_rate": 100.0,
+    "e2e_rate": 100.0,
+    "hallucination_rate": 0.0,
+    "p50_ms": 8324,
+    "p90_ms": 9727,
+    "max_ms": 12593
+   }
+  }
+ },
+ "records": [
+  {
+   "id": "S01",
+   "question": "客户主档中共有多少客户?",
+   "difficulty": "simple",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d"
+   ],
+   "gold_sql": "SELECT COUNT(*) AS c FROM ads_cust_info_d WHERE data_dt='20260531'",
+   "caliber_notes": "客户表只有 20260531 一个快照。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "c"
+    ],
+    "rows": [
+     [
+      500
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 5200,
+   "sql": "SELECT COUNT(pty_id) AS 客户数\nFROM ads_cust_info_d\nWHERE data_dt = '20260531'",
+   "rows": [
+    [
+     500
+    ]
+   ],
+   "headers": [
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "客户主档中共有 500 个客户。该结果基于 data_dt='20260531' 这一快照统计，即按 2026-05-31 的客户主档数据计算客户总数。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S02",
+   "question": "客户的平均年龄是多少?",
+   "difficulty": "simple",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d"
+   ],
+   "gold_sql": "SELECT ROUND(AVG(cust_age),2) AS 平均年龄 FROM ads_cust_info_d WHERE data_dt='20260531'",
+   "caliber_notes": "年龄直接取 cust_age;客户表单快照 20260531。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "平均年龄"
+    ],
+    "rows": [
+     [
+      60.44
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 4313,
+   "sql": "SELECT AVG(cust_age) AS 平均年龄 FROM ads_cust_info_d WHERE data_dt = '20260531'",
+   "rows": [
+    [
+     60.436
+    ]
+   ],
+   "headers": [
+    "平均年龄"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "客户主档中所有客户的平均年龄为 60.44 岁。该结果基于 2026-05-31 的快照数据统计，即取该日期客户主档中的全部客户计算平均年龄。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S03",
+   "question": "客户中年龄最大的是多少岁?",
+   "difficulty": "simple",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d"
+   ],
+   "gold_sql": "SELECT MAX(cust_age) AS 最大年龄 FROM ads_cust_info_d WHERE data_dt='20260531'",
+   "caliber_notes": "年龄直接取 cust_age;客户表单快照 20260531。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "最大年龄"
+    ],
+    "rows": [
+     [
+      87.0
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 4449,
+   "sql": "SELECT MAX(cust_age) AS 最大年龄 FROM ads_cust_info_d WHERE data_dt = '20260531'",
+   "rows": [
+    [
+     87.0
+    ]
+   ],
+   "headers": [
+    "最大年龄"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "客户主档中年龄最大的客户为 87 岁。该结果基于 2026-05-31 的快照数据统计，取客户年龄字段的最大值。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S04",
+   "question": "各省份分别有多少客户?",
+   "difficulty": "simple",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d"
+   ],
+   "gold_sql": "SELECT prov_name AS 省份, COUNT(*) AS 客户数 FROM ads_cust_info_d WHERE data_dt='20260531' GROUP BY prov_name ORDER BY 客户数 DESC",
+   "caliber_notes": "按 prov_name 分组,时间=客户快照 20260531。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "省份",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "江苏省",
+      478
+     ],
+     [
+      "上海市",
+      8
+     ],
+     [
+      "北京市",
+      5
+     ],
+     [
+      "广东省",
+      4
+     ],
+     [
+      "浙江省",
+      2
+     ],
+     [
+      "安徽省",
+      1
+     ],
+     [
+      "四川省",
+      1
+     ],
+     [
+      "云南省",
+      1
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6029,
+   "sql": "SELECT ads_cust_info_d.prov_name AS 省份, COUNT(ads_cust_info_d.pty_id) AS 客户数 FROM ads_cust_info_d WHERE ads_cust_info_d.data_dt = '20260531' GROUP BY ads_cust_info_d.prov_name ORDER BY 客户数 DESC",
+   "rows": [
+    [
+     "江苏省",
+     478
+    ],
+    [
+     "上海市",
+     8
+    ],
+    [
+     "北京市",
+     5
+    ],
+    [
+     "广东省",
+     4
+    ],
+    [
+     "浙江省",
+     2
+    ],
+    [
+     "安徽省",
+     1
+    ],
+    [
+     "四川省",
+     1
+    ],
+    [
+     "云南省",
+     1
+    ]
+   ],
+   "headers": [
+    "省份",
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 的客户主档快照统计，各省份客户数量差异极大：江苏省以 478 户遥遥领先，其余省份均不足 10 户。其中上海市 8 户、北京市 5 户、广东省 4 户，浙江省 2 户，安徽省、四川省、云南省各 1 户。整体来看客户高度集中在江苏省，其他省份分布非常稀疏。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S05",
+   "question": "各城市分别有多少客户?",
+   "difficulty": "simple",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d"
+   ],
+   "gold_sql": "SELECT city_name AS 城市, COUNT(*) AS 客户数 FROM ads_cust_info_d WHERE data_dt='20260531' GROUP BY city_name ORDER BY 客户数 DESC",
+   "caliber_notes": "按 city_name 分组,时间=客户快照 20260531。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "城市",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "苏州市",
+      446
+     ],
+     [
+      "南京市",
+      30
+     ],
+     [
+      "上海市",
+      8
+     ],
+     [
+      "北京市",
+      5
+     ],
+     [
+      "广州市",
+      3
+     ],
+     [
+      "杭州市",
+      2
+     ],
+     [
+      "无锡市",
+      2
+     ],
+     [
+      "深圳市",
+      1
+     ],
+     [
+      "昆明市",
+      1
+     ],
+     [
+      "成都市",
+      1
+     ],
+     [
+      "合肥市",
+      1
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6497,
+   "sql": "SELECT city_name AS 城市, COUNT(pty_id) AS 客户数 FROM ads_cust_info_d WHERE data_dt = '20260531' GROUP BY city_name ORDER BY 客户数 DESC",
+   "rows": [
+    [
+     "苏州市",
+     446
+    ],
+    [
+     "南京市",
+     30
+    ],
+    [
+     "上海市",
+     8
+    ],
+    [
+     "北京市",
+     5
+    ],
+    [
+     "广州市",
+     3
+    ],
+    [
+     "杭州市",
+     2
+    ],
+    [
+     "无锡市",
+     2
+    ],
+    [
+     "深圳市",
+     1
+    ],
+    [
+     "昆明市",
+     1
+    ],
+    [
+     "成都市",
+     1
+    ],
+    [
+     "合肥市",
+     1
+    ]
+   ],
+   "headers": [
+    "城市",
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 快照统计，客户主要集中在苏州市，共 446 人，远超其他城市。其余城市客户数均较少：南京市 30 人、上海市 8 人、北京市 5 人、广州市 3 人，杭州市和无锡市各 2 人，深圳市、昆明市、成都市、合肥市各 1 人。整体来看，客户分布高度集中于苏州，其他城市规模都很小。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S06",
+   "question": "共有多少个营业部?",
+   "difficulty": "simple",
+   "category": "维度查询",
+   "tables": [
+    "dim_branch"
+   ],
+   "gold_sql": "SELECT COUNT(DISTINCT org_id) AS 营业部数 FROM dim_branch",
+   "caliber_notes": "营业部以 dim_branch.org_id 去重。",
+   "expect_time": [],
+   "expect_tables": [
+    "dim_branch"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "营业部数"
+    ],
+    "rows": [
+     [
+      312
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 4798,
+   "sql": "SELECT COUNT(*) AS 营业部数 FROM dim_branch",
+   "rows": [
+    [
+     312
+    ]
+   ],
+   "headers": [
+    "营业部数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "营业部",
+     "table": "dim_branch",
+     "key": "org_id",
+     "evidence": "问题原文命中别名「营业部」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "目前营业部总数为 312 家。该数字按 dim_branch 表中的记录行数统计，即每个营业部对应一条记录。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S07",
+   "question": "产品维表里共有多少个产品?",
+   "difficulty": "simple",
+   "category": "维度查询",
+   "tables": [
+    "dim_product"
+   ],
+   "gold_sql": "SELECT COUNT(DISTINCT prdt_id) AS 产品数 FROM dim_product",
+   "caliber_notes": "产品以 prdt_id 去重。",
+   "expect_time": [],
+   "expect_tables": [
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "产品数"
+    ],
+    "rows": [
+     [
+      334694
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 4110,
+   "sql": "SELECT COUNT(prdt_id) AS 产品数量 FROM dim_product",
+   "rows": [
+    [
+     334694
+    ]
+   ],
+   "headers": [
+    "产品数量"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "dim_product 产品维表中共有 334,694 个产品。该统计基于 prdt_id 字段计数，即按产品 ID 去重后的记录数。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S08",
+   "question": "产品共分为多少个二级分类?",
+   "difficulty": "simple",
+   "category": "维度查询",
+   "tables": [
+    "dim_product"
+   ],
+   "gold_sql": "SELECT COUNT(DISTINCT prdt_type_id) AS 二级分类数 FROM dim_product",
+   "caliber_notes": "二级分类以 prdt_type_id 去重。",
+   "expect_time": [],
+   "expect_tables": [
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "二级分类数"
+    ],
+    "rows": [
+     [
+      57
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 4095,
+   "sql": "SELECT COUNT(DISTINCT prdt_type_id) AS 二级分类数量 FROM dim_product",
+   "rows": [
+    [
+     57
+    ]
+   ],
+   "headers": [
+    "二级分类数量"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "产品维度表中共有 57 个二级分类。该结果基于对 prdt_type_id 字段的去重统计，即同一二级分类只计一次。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S09",
+   "question": "2026-03-31 全库客户总资产是多少?",
+   "difficulty": "simple",
+   "category": "指标查询",
+   "tables": [
+    "dws_cust_aset_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(nm_tot_aset+fc_pur_aset),4) AS 总资产 FROM dws_cust_aset_d WHERE data_dt='20260331'",
+   "caliber_notes": "总资产=nm_tot_aset+fc_pur_aset;取 20260331 快照。",
+   "expect_time": [
+    "20260331"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "总资产"
+    ],
+    "rows": [
+     [
+      596341979.7141
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8602,
+   "sql": "SELECT SUM(COALESCE(a.nm_tot_aset, 0) + COALESCE(a.fc_pur_aset, 0)) AS 总资产\nFROM dws_cust_aset_d a\nJOIN ads_cust_info_d c ON a.pty_id = c.pty_id AND c.data_dt = '20260531'\nWHERE a.data_dt = '20260331'",
+   "rows": [
+    [
+     596341979.7141
+    ]
+   ],
+   "headers": [
+    "总资产"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "截至 2026-03-31，全库客户总资产合计约 5.96 亿元（596,341,979.71 元）。该口径为\"名义总资产 + 场外购买资产\"之和，且客户范围以 2026-05-31 客户信息快照为准进行关联匹配。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S10",
+   "question": "2026-03-31 全库客户现金资产合计是多少?",
+   "difficulty": "simple",
+   "category": "指标查询",
+   "tables": [
+    "dws_cust_aset_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(nm_bal+fc_bal),4) AS 现金资产 FROM dws_cust_aset_d WHERE data_dt='20260331'",
+   "caliber_notes": "现金资产=nm_bal+fc_bal;取 20260331 快照。",
+   "expect_time": [
+    "20260331"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "现金资产"
+    ],
+    "rows": [
+     [
+      20936281.8986
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 7680,
+   "sql": "SELECT SUM(COALESCE(a.nm_bal, 0) + COALESCE(a.fc_bal, 0)) AS 现金资产\nFROM dws_cust_aset_d a\nJOIN ads_cust_info_d c ON a.pty_id = c.pty_id\nWHERE a.data_dt = '20260331' AND c.data_dt = '20260531'",
+   "rows": [
+    [
+     20936281.8986
+    ]
+   ],
+   "headers": [
+    "现金资产"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "截至统计口径，2026-03-31 全库客户的现金资产合计约为 2093.63 万元（20,936,281.90 元）。该结果按\"现金资产 = 本币余额 + 外币余额\"的口径汇总，客户范围以 2026-05-31 的客户信息快照为准。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S11",
+   "question": "2026 年一季度全库客户买入金额合计是多少?",
+   "difficulty": "simple",
+   "category": "指标查询",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(buy_amt),4) AS 买入金额 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331'",
+   "caliber_notes": "一季度=20260101~20260331;买入金额=buy_amt。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "买入金额"
+    ],
+    "rows": [
+     [
+      2326114486.8732
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 9063,
+   "sql": "SELECT SUM(dwd_cust_tran_d.buy_amt) AS 买入金额\nFROM dwd_cust_tran_d\nJOIN ads_cust_info_d ON dwd_cust_tran_d.pty_id = ads_cust_info_d.pty_id\nWHERE dwd_cust_tran_d.data_dt BETWEEN '20260101' AND '20260331'",
+   "rows": [
+    [
+     2326114486.8732
+    ]
+   ],
+   "headers": [
+    "买入金额"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度全库客户的买入金额合计约为 23.26 亿元（2,326,114,486.87 元）。该结果基于 dwd_cust_tran_d 与 ads_cust_info_d 关联后的客户交易数据，统计区间为 2026-01-01 至 2026-03-31，买入金额按 buy_amt 字段求和。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S12",
+   "question": "2026 年一季度全库客户卖出金额合计是多少?",
+   "difficulty": "simple",
+   "category": "指标查询",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(sell_amt),4) AS 卖出金额 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331'",
+   "caliber_notes": "一季度=20260101~20260331;卖出金额=sell_amt。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "卖出金额"
+    ],
+    "rows": [
+     [
+      3764377912.5632
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8037,
+   "sql": "SELECT SUM(t.sell_amt) AS 卖出金额\nFROM dwd_cust_tran_d t\nJOIN ads_cust_info_d c ON t.pty_id = c.pty_id\nWHERE t.data_dt BETWEEN '20260101' AND '20260331'",
+   "rows": [
+    [
+     3764377912.5632
+    ]
+   ],
+   "headers": [
+    "卖出金额"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度全库客户的卖出金额合计约为 37.64 亿元（3,764,377,912.56 元）。该结果基于交易明细表按 2026-01-01 至 2026-03-31 区间汇总，并关联客户信息表以覆盖全库客户。统计口径为所有客户、所有账户与币种的卖出金额直接求和，未做币种折算或去重处理。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S13",
+   "question": "2026 年一季度客户交易笔数(买入+卖出)合计是多少?",
+   "difficulty": "simple",
+   "category": "指标查询",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(buy_cnt+sell_cnt),0) AS 交易笔数 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331'",
+   "caliber_notes": "一季度=20260101~20260331;交易笔数=buy_cnt+sell_cnt。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "交易笔数"
+    ],
+    "rows": [
+     [
+      75867.0
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 7965,
+   "sql": "SELECT SUM(t.buy_cnt + t.sell_cnt) AS 交易笔数\nFROM dwd_cust_tran_d t\nJOIN ads_cust_info_d c ON t.pty_id = c.pty_id\nWHERE t.data_dt BETWEEN '20260101' AND '20260331'",
+   "rows": [
+    [
+     75867.0
+    ]
+   ],
+   "headers": [
+    "交易笔数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度全部客户的买入与卖出交易笔数合计为 75,867 笔。该数字按\"买入笔数+卖出笔数\"口径汇总，统计区间为 2026-01-01 至 2026-03-31。需说明的是，实际交易数据覆盖范围为 2026-01-05 至 2026-03-31，年初前几日可能无数据。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "S14",
+   "question": "2026-03-31 全库客户持仓市值合计是多少?",
+   "difficulty": "simple",
+   "category": "指标查询",
+   "tables": [
+    "dwd_cust_hold_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(mkt_val),4) AS 持仓市值 FROM dwd_cust_hold_d WHERE data_dt='20260331'",
+   "caliber_notes": "持仓市值=mkt_val;取 20260331 快照。",
+   "expect_time": [
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_hold_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "持仓市值"
+    ],
+    "rows": [
+     [
+      613877526.172
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8111,
+   "sql": "SELECT SUM(h.mkt_val) AS \"持仓市值合计\"\nFROM dwd_cust_hold_d h\nJOIN ads_cust_info_d c\n  ON h.pty_id = c.pty_id\nWHERE h.data_dt = '20260331'\n  AND c.data_dt = '20260531'",
+   "rows": [
+    [
+     613877526.172
+    ]
+   ],
+   "headers": [
+    "持仓市值合计"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "截至 2026-03-31，全库客户持仓市值合计约为 6.14 亿元（精确值 613,877,526.172 元）。该结果基于 2026-03-31 的持仓快照，并关联了 2026-05-31 的客户信息快照进行统计。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M01",
+   "question": "各客户等级分别有多少客户?",
+   "difficulty": "medium",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "SELECT p.describe AS 客户等级, COUNT(*) AS 客户数 FROM ads_cust_info_d a JOIN dim_public p ON a.cust_lvl_cd=p.code AND p.code_type_id='100' WHERE a.data_dt='20260531' GROUP BY p.describe ORDER BY 客户数 DESC",
+   "caliber_notes": "客户等级=dim_public code_type_id=100 解码 cust_lvl_cd;客户表单快照。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户等级",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "紫金理财银卡客户",
+      151
+     ],
+     [
+      "紫金理财金卡客户",
+      118
+     ],
+     [
+      "紫金理财白金卡客户",
+      73
+     ],
+     [
+      "空",
+      65
+     ],
+     [
+      "紫金理财卡客户",
+      63
+     ],
+     [
+      "紫金理财钻石卡客户",
+      30
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 5633,
+   "sql": "SELECT dim_public.describe AS 客户等级, COUNT(ads_cust_info_d.pty_id) AS 客户数\nFROM ads_cust_info_d\nLEFT JOIN dim_public ON ads_cust_info_d.cust_lvl_cd = dim_public.code AND dim_public.code_type_id = '100'\nWHERE ads_cust_info_d.data_dt = '20260531'\nGROUP BY dim_public.describe\nORDER BY 客户数 DESC",
+   "rows": [
+    [
+     "紫金理财银卡客户",
+     151
+    ],
+    [
+     "紫金理财金卡客户",
+     118
+    ],
+    [
+     "紫金理财白金卡客户",
+     73
+    ],
+    [
+     "空",
+     65
+    ],
+    [
+     "紫金理财卡客户",
+     63
+    ],
+    [
+     "紫金理财钻石卡客户",
+     30
+    ]
+   ],
+   "headers": [
+    "客户等级",
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 快照统计，各客户等级中紫金理财银卡客户最多，为 151 人；其次是金卡客户 118 人、白金卡客户 73 人。另有 65 人客户等级为空（未匹配到等级描述），紫金理财卡客户 63 人，钻石卡客户最少，为 30 人。整体呈\"等级越低人数越多\"的分布，符合常见的客户分层结构。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M02",
+   "question": "男性、女性客户各有多少人?",
+   "difficulty": "medium",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "SELECT p.describe AS 性别, COUNT(*) AS 客户数 FROM ads_cust_info_d a JOIN dim_public p ON a.gender_cd=p.code AND p.code_type_id='500' WHERE a.data_dt='20260531' GROUP BY p.describe ORDER BY 客户数 DESC",
+   "caliber_notes": "性别=dim_public code_type_id=500 解码 gender_cd。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "性别",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "男",
+      318
+     ],
+     [
+      "女",
+      182
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 5527,
+   "sql": "SELECT dim_public.describe AS 性别, COUNT(ads_cust_info_d.pty_id) AS 客户数\nFROM ads_cust_info_d\nLEFT JOIN dim_public ON ads_cust_info_d.gender_cd = dim_public.code AND dim_public.code_type_id = '500'\nWHERE ads_cust_info_d.data_dt = '20260531'\nGROUP BY dim_public.describe\nORDER BY 性别 ASC",
+   "rows": [
+    [
+     "女",
+     182
+    ],
+    [
+     "男",
+     318
+    ]
+   ],
+   "headers": [
+    "性别",
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 的客户主档快照统计，男性客户 318 人，女性客户 182 人，男性明显多于女性。两者合计 500 人。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M03",
+   "question": "各学历客户分别有多少人?",
+   "difficulty": "medium",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "SELECT p.describe AS 学历, COUNT(*) AS 客户数 FROM ads_cust_info_d a JOIN dim_public p ON a.edu_cd=p.code AND p.code_type_id='600' WHERE a.data_dt='20260531' GROUP BY p.describe ORDER BY 客户数 DESC",
+   "caliber_notes": "学历=dim_public code_type_id=600 解码 edu_cd。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "学历",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "大专",
+      179
+     ],
+     [
+      "学士",
+      101
+     ],
+     [
+      "高中",
+      94
+     ],
+     [
+      "初中及其以下",
+      61
+     ],
+     [
+      "中专",
+      42
+     ],
+     [
+      "硕士",
+      15
+     ],
+     [
+      "其他",
+      8
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 4198,
+   "sql": "SELECT dim_public.describe AS 学历, COUNT(ads_cust_info_d.pty_id) AS 客户人数\nFROM ads_cust_info_d\nLEFT JOIN dim_public ON ads_cust_info_d.edu_cd = dim_public.code AND dim_public.code_type_id = '600'\nWHERE ads_cust_info_d.data_dt = '20260531'\nGROUP BY dim_public.describe\nORDER BY 客户人数 DESC",
+   "rows": [
+    [
+     "大专",
+     179
+    ],
+    [
+     "学士",
+     101
+    ],
+    [
+     "高中",
+     94
+    ],
+    [
+     "初中及其以下",
+     61
+    ],
+    [
+     "中专",
+     42
+    ],
+    [
+     "硕士",
+     15
+    ],
+    [
+     "其他",
+     8
+    ]
+   ],
+   "headers": [
+    "学历",
+    "客户人数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 快照统计，客户学历以大专为主，共 179 人，占比最高。其次是学士 101 人、高中 94 人、初中及其以下 61 人、中专 42 人，硕士仅 15 人，其他 8 人。整体来看，客户学历集中在大专及以下层次，本科及以上（学士+硕士）合计 116 人。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M04",
+   "question": "各职业客户分别有多少人(前 10)?",
+   "difficulty": "medium",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "SELECT p.describe AS 职业, COUNT(*) AS 客户数 FROM ads_cust_info_d a JOIN dim_public p ON a.prof_cd=p.code AND p.code_type_id='700' WHERE a.data_dt='20260531' GROUP BY p.describe ORDER BY 客户数 DESC LIMIT 10",
+   "caliber_notes": "职业=dim_public code_type_id=700 解码 prof_cd;取前10。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "职业",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "非公职 离/退休",
+      107
+     ],
+     [
+      "公职 离/退休",
+      79
+     ],
+     [
+      "个体工商户（含淘宝店自营等）",
+      58
+     ],
+     [
+      "自由职业者",
+      34
+     ],
+     [
+      "生产制造及有关人员",
+      33
+     ],
+     [
+      "非国有企业单位干部（金融业除外）",
+      27
+     ],
+     [
+      "卫生专业技术人员",
+      19
+     ],
+     [
+      "无业",
+      18
+     ],
+     [
+      "事业单位办事人员和相关人员（金融业除外）",
+      15
+     ],
+     [
+      "交通运输、仓储、邮政业服务人员",
+      12
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 5633,
+   "sql": "SELECT dim_public.describe AS 职业, COUNT(ads_cust_info_d.pty_id) AS 客户人数\nFROM ads_cust_info_d\nLEFT JOIN dim_public ON ads_cust_info_d.prof_cd = dim_public.code AND dim_public.code_type_id = '700'\nWHERE ads_cust_info_d.data_dt = '20260531'\nGROUP BY dim_public.describe\nORDER BY 客户人数 DESC\nLIMIT 10",
+   "rows": [
+    [
+     "非公职 离/退休",
+     107
+    ],
+    [
+     "公职 离/退休",
+     79
+    ],
+    [
+     "个体工商户（含淘宝店自营等）",
+     58
+    ],
+    [
+     "自由职业者",
+     34
+    ],
+    [
+     "生产制造及有关人员",
+     33
+    ],
+    [
+     "非国有企业单位干部（金融业除外）",
+     27
+    ],
+    [
+     "卫生专业技术人员",
+     19
+    ],
+    [
+     "无业",
+     18
+    ],
+    [
+     "事业单位办事人员和相关人员（金融业除外）",
+     15
+    ],
+    [
+     "交通运输、仓储、邮政业服务人员",
+     12
+    ]
+   ],
+   "headers": [
+    "职业",
+    "客户人数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "排名",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 客户主档快照统计，客户人数最多的职业是\"非公职 离/退休\"，共 107 人；其次是\"公职 离/退休\"79 人、\"个体工商户（含淘宝店自营等）\"58 人。前 10 名中，退休类职业占据前两位，合计 186 人，明显高于其他职业；自由职业者（34 人）和生产制造及有关人员（33 人）紧随其后。第 10 名为交通运输、仓储、邮政业服务人员，12 人。职业名称取自 code_type_id='700' 的维度表，未匹配到的职业会归入空值分组，但未进入前 10。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M05",
+   "question": "按年龄段(30 岁以下/30-50/50-60/60 以上)客户分别有多少人?",
+   "difficulty": "medium",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d"
+   ],
+   "gold_sql": "SELECT CASE WHEN cust_age<30 THEN '30岁以下' WHEN cust_age<50 THEN '30-50岁' WHEN cust_age<60 THEN '50-60岁' ELSE '60岁以上' END AS 年龄段, COUNT(*) AS 客户数 FROM ads_cust_info_d WHERE data_dt='20260531' GROUP BY 年龄段 ORDER BY 年龄段",
+   "caliber_notes": "年龄分桶边界: [0,30) [30,50) [50,60) [60,∞)。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "年龄段",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "30-50岁",
+      34
+     ],
+     [
+      "50-60岁",
+      204
+     ],
+     [
+      "60岁以上",
+      262
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 7005,
+   "sql": "SELECT CASE WHEN cust_age < 30 THEN '<30' WHEN cust_age < 50 THEN '[30,50)' WHEN cust_age < 60 THEN '[50,60)' ELSE '≥60' END AS 年龄段, COUNT(pty_id) AS 客户人数 FROM ads_cust_info_d WHERE data_dt = '20260531' GROUP BY 年龄段 ORDER BY 年龄段 ASC",
+   "rows": [
+    [
+     "[30,50)",
+     34
+    ],
+    [
+     "[50,60)",
+     204
+    ],
+    [
+     "≥60",
+     262
+    ]
+   ],
+   "headers": [
+    "年龄段",
+    "客户人数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 的客户主档快照统计，客户年龄结构明显偏大：60 岁及以上客户最多，达 262 人；其次是 50–59 岁，204 人；30–49 岁仅 34 人；30 岁以下没有客户。也就是说，50 岁及以上客户合计 466 人，占全部有年龄记录客户（500 人）的九成以上。年龄分桶按 <30、[30,50)、[50,60)、≥60 划分。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M06",
+   "question": "硕士及以上学历的女性客户有多少人?",
+   "difficulty": "medium",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "SELECT COUNT(*) AS 客户数 FROM ads_cust_info_d a JOIN dim_public e ON a.edu_cd=e.code AND e.code_type_id='600' JOIN dim_public g ON a.gender_cd=g.code AND g.code_type_id='500' WHERE a.data_dt='20260531' AND g.describe='女' AND e.describe IN ('硕士','博士')",
+   "caliber_notes": "硕士及以上=硕士/博士;女性经 500 解码。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "客户数"
+    ],
+    "rows": [
+     [
+      3
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6352,
+   "sql": "SELECT COUNT(DISTINCT a.pty_id) AS 客户数\nFROM ads_cust_info_d a\nJOIN dim_public e ON a.edu_cd = e.code AND e.code_type_id = '600'\nJOIN dim_public g ON a.gender_cd = g.code AND g.code_type_id = '500'\nWHERE a.data_dt = '20260531'\n  AND (e.describe LIKE '%硕士%' OR e.describe LIKE '%博士%')\n  AND g.describe = '女'",
+   "rows": [
+    [
+     3
+    ]
+   ],
+   "headers": [
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 的客户快照统计，硕士及以上学历的女性客户共有 3 人。该口径将硕士、博士等高于学士的学历均计入\"硕士及以上\"，性别取值为\"女\"。人数较少，可能与快照日期或学历、性别字段的登记完整度有关。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M07",
+   "question": "各分公司下分别有多少营业部?",
+   "difficulty": "medium",
+   "category": "维度查询",
+   "tables": [
+    "dim_branch"
+   ],
+   "gold_sql": "SELECT up_org_name AS 分公司, COUNT(*) AS 营业部数 FROM dim_branch GROUP BY up_org_name ORDER BY 营业部数 DESC",
+   "caliber_notes": "分公司=dim_branch.up_org_name 分组。",
+   "expect_time": [],
+   "expect_tables": [
+    "dim_branch"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "分公司",
+     "营业部数"
+    ],
+    "rows": [
+     [
+      "湖北分公司",
+      29
+     ],
+     [
+      "财富管理部",
+      26
+     ],
+     [
+      "南京分公司",
+      21
+     ],
+     [
+      "深圳分公司",
+      17
+     ],
+     [
+      "上海分公司",
+      17
+     ],
+     [
+      "广东分公司",
+      16
+     ],
+     [
+      "苏州分公司",
+      14
+     ],
+     [
+      "北京分公司",
+      14
+     ],
+     [
+      "无锡分公司",
+      12
+     ],
+     [
+      "徐州分公司",
+      12
+     ],
+     [
+      "常州分公司",
+      12
+     ],
+     [
+      "四川分公司",
+      12
+     ],
+     [
+      "浙江分公司",
+      11
+     ],
+     [
+      "南通分公司",
+      11
+     ],
+     [
+      "黑龙江分公司",
+      10
+     ],
+     [
+      "盐城分公司",
+      9
+     ],
+     [
+      "辽宁分公司",
+      8
+     ],
+     [
+      "西北分公司",
+      8
+     ],
+     [
+      "湖南分公司",
+      8
+     ],
+     [
+      "山东分公司",
+      8
+     ],
+     [
+      "泰州分公司",
+      6
+     ],
+     [
+      "安徽分公司",
+      6
+     ],
+     [
+      "福建分公司",
+      5
+     ],
+     [
+      "河南分公司",
+      5
+     ],
+     [
+      "江西分公司",
+      5
+     ],
+     [
+      "扬州分公司",
+      5
+     ],
+     [
+      "天津分公司",
+      5
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6393,
+   "sql": "SELECT up_org_name AS 分公司, COUNT(*) AS 营业部数 FROM dim_branch GROUP BY up_org_name ORDER BY 营业部数 DESC",
+   "rows": [
+    [
+     "湖北分公司",
+     29
+    ],
+    [
+     "财富管理部",
+     26
+    ],
+    [
+     "南京分公司",
+     21
+    ],
+    [
+     "深圳分公司",
+     17
+    ],
+    [
+     "上海分公司",
+     17
+    ],
+    [
+     "广东分公司",
+     16
+    ],
+    [
+     "苏州分公司",
+     14
+    ],
+    [
+     "北京分公司",
+     14
+    ],
+    [
+     "无锡分公司",
+     12
+    ],
+    [
+     "徐州分公司",
+     12
+    ],
+    [
+     "常州分公司",
+     12
+    ],
+    [
+     "四川分公司",
+     12
+    ],
+    [
+     "浙江分公司",
+     11
+    ],
+    [
+     "南通分公司",
+     11
+    ],
+    [
+     "黑龙江分公司",
+     10
+    ],
+    [
+     "盐城分公司",
+     9
+    ],
+    [
+     "辽宁分公司",
+     8
+    ],
+    [
+     "西北分公司",
+     8
+    ],
+    [
+     "湖南分公司",
+     8
+    ],
+    [
+     "山东分公司",
+     8
+    ],
+    [
+     "泰州分公司",
+     6
+    ],
+    [
+     "安徽分公司",
+     6
+    ],
+    [
+     "福建分公司",
+     5
+    ],
+    [
+     "河南分公司",
+     5
+    ],
+    [
+     "江西分公司",
+     5
+    ],
+    [
+     "扬州分公司",
+     5
+    ],
+    [
+     "天津分公司",
+     5
+    ]
+   ],
+   "headers": [
+    "分公司",
+    "营业部数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "营业部",
+     "table": "dim_branch",
+     "key": "org_id",
+     "evidence": "问题原文命中别名「营业部」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "各分公司中，湖北分公司下辖营业部数量最多，共 29 家；其次是财富管理部 26 家、南京分公司 21 家。深圳和上海分公司并列，均为 17 家；广东 16 家，苏州和北京各 14 家。整体来看，营业部资源集中在湖北、财富管理部及南京等头部单位，其余分公司多在 8~12 家区间。需说明的是，本次统计按 dim_branch 表的行数计数，且结果仅展示前 16 行，后续分公司的数据未完全列出。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M08",
+   "question": "2026 年一季度各产品一级分类的买入金额分别是多少?",
+   "difficulty": "medium",
+   "category": "指标查询",
+   "tables": [
+    "dwd_cust_tran_d",
+    "dim_product"
+   ],
+   "gold_sql": "SELECT d.up_prdt_type_id AS 一级分类ID, d.up_prdt_type_name AS 一级分类, ROUND(SUM(t.buy_amt),4) AS 买入金额 FROM dwd_cust_tran_d t JOIN dim_product d ON t.prdt_id=d.prdt_id WHERE t.data_dt BETWEEN '20260101' AND '20260331' GROUP BY d.up_prdt_type_id, d.up_prdt_type_name ORDER BY 买入金额 DESC",
+   "caliber_notes": "一季度=20260101~20260331;一级分类用 up_prdt_type_id+up_prdt_type_name 分组(存在同名多义)。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "一级分类ID",
+     "一级分类",
+     "买入金额"
+    ],
+    "rows": [
+     [
+      "PT040000",
+      "股票",
+      1381320301.622
+     ],
+     [
+      "PT050000",
+      "开放式基金",
+      929399333.4812
+     ],
+     [
+      "PT070000",
+      "理财产品",
+      7581000.0
+     ],
+     [
+      "PT100000",
+      "证券投资类私募",
+      5250000.0
+     ],
+     [
+      "PT030000",
+      "债券",
+      2563851.77
+     ],
+     [
+      "PT080000",
+      "回购一级类别",
+      0.0
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6872,
+   "sql": "SELECT dim_product.up_prdt_type_id AS 一级分类ID, dim_product.up_prdt_type_name AS 一级分类, SUM(dwd_cust_tran_d.buy_amt) AS 买入金额 FROM dwd_cust_tran_d JOIN dim_product ON dwd_cust_tran_d.prdt_id = dim_product.prdt_id WHERE dwd_cust_tran_d.data_dt BETWEEN '20260101' AND '20260331' GROUP BY dim_product.up_prdt_type_id, dim_product.up_prdt_type_name ORDER BY 买入金额 DESC",
+   "rows": [
+    [
+     "PT040000",
+     "股票",
+     1381320301.622
+    ],
+    [
+     "PT050000",
+     "开放式基金",
+     929399333.4812
+    ],
+    [
+     "PT070000",
+     "理财产品",
+     7581000.0
+    ],
+    [
+     "PT100000",
+     "证券投资类私募",
+     5250000.0
+    ],
+    [
+     "PT030000",
+     "债券",
+     2563851.77
+    ],
+    [
+     "PT080000",
+     "回购一级类别",
+     0.0
+    ]
+   ],
+   "headers": [
+    "一级分类ID",
+    "一级分类",
+    "买入金额"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度各产品一级分类中，股票类买入金额最高，达13.81亿元，远超其他类别。开放式基金次之，买入金额约9.29亿元。理财产品、证券投资类私募和债券的买入金额分别为758.1万元、525万元和256.39万元，规模明显较小。回购一级类别买入金额为0，说明该季度无相关买入交易。统计基于买入金额字段（buy_amt），产品按一级分类ID/名称归类。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M09",
+   "question": "各分公司分别有多少客户?",
+   "difficulty": "medium",
+   "category": "客户筛选",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_branch"
+   ],
+   "gold_sql": "SELECT b.up_org_name AS 分公司, COUNT(*) AS 客户数 FROM ads_cust_info_d a JOIN dim_branch b ON a.org_id=b.org_id WHERE a.data_dt='20260531' GROUP BY b.up_org_name ORDER BY 客户数 DESC",
+   "caliber_notes": "客户归属营业部 org_id, 经 dim_branch 上卷到分公司。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_branch"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "分公司",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "苏州分公司",
+      446
+     ],
+     [
+      "南京分公司",
+      30
+     ],
+     [
+      "上海分公司",
+      8
+     ],
+     [
+      "北京分公司",
+      5
+     ],
+     [
+      "广东分公司",
+      3
+     ],
+     [
+      "浙江分公司",
+      2
+     ],
+     [
+      "无锡分公司",
+      2
+     ],
+     [
+      "四川分公司",
+      2
+     ],
+     [
+      "深圳分公司",
+      1
+     ],
+     [
+      "安徽分公司",
+      1
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6810,
+   "sql": "SELECT dim_branch.up_org_name AS 分公司, COUNT(ads_cust_info_d.pty_id) AS 客户数\nFROM ads_cust_info_d\nJOIN dim_branch ON ads_cust_info_d.org_id = dim_branch.org_id\nWHERE ads_cust_info_d.data_dt = '20260531'\nGROUP BY dim_branch.up_org_name\nORDER BY 客户数 DESC",
+   "rows": [
+    [
+     "苏州分公司",
+     446
+    ],
+    [
+     "南京分公司",
+     30
+    ],
+    [
+     "上海分公司",
+     8
+    ],
+    [
+     "北京分公司",
+     5
+    ],
+    [
+     "广东分公司",
+     3
+    ],
+    [
+     "浙江分公司",
+     2
+    ],
+    [
+     "无锡分公司",
+     2
+    ],
+    [
+     "四川分公司",
+     2
+    ],
+    [
+     "深圳分公司",
+     1
+    ],
+    [
+     "安徽分公司",
+     1
+    ]
+   ],
+   "headers": [
+    "分公司",
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "营业部",
+     "table": "dim_branch",
+     "key": "org_id",
+     "evidence": "计划用到承载表 dim_branch",
+     "source": "implied"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "截至 2026-05-31 快照，各分公司客户数量差异明显：苏州分公司以 446 户遥遥领先，南京分公司 30 户居次，上海 8 户、北京 5 户，其余广东、浙江、无锡、四川各 2~3 户，深圳、安徽各 1 户。整体呈现\"苏州一家独大、其余分公司规模偏小\"的分布格局。统计按客户号 pty_id 去重计数，仅取 2026-05-31 单一快照，未覆盖其他时点数据。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M10",
+   "question": "2026 年一季度普通账户和信用账户的交易金额分别是多少?",
+   "difficulty": "medium",
+   "category": "指标查询",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT sys_source AS 账户, ROUND(SUM(buy_amt+sell_amt),4) AS 交易金额 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY sys_source ORDER BY sys_source",
+   "caliber_notes": "nm=普通,fc=信用;交易金额=buy_amt+sell_amt。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "账户",
+     "交易金额"
+    ],
+    "rows": [
+     [
+      "fc",
+      681481080.924
+     ],
+     [
+      "nm",
+      5409011318.5124
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6045,
+   "sql": "SELECT sys_source AS 账户, SUM(buy_amt + sell_amt) AS 交易金额 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY sys_source ORDER BY 账户",
+   "rows": [
+    [
+     "fc",
+     681481080.924
+    ],
+    [
+     "nm",
+     5409011318.5124
+    ]
+   ],
+   "headers": [
+    "账户",
+    "交易金额"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [],
+   "entities_covered": false,
+   "intent": "对比",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度，普通账户（nm）的交易金额明显高于信用账户（fc）。具体来看，nm 账户交易金额约为 54.09 亿元，fc 账户约为 6.81 亿元，前者约为后者的 7.9 倍。本次统计按 sys_source 原值分组，交易金额按买入金额加卖出金额计算。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M11",
+   "question": "2026-03-31 各客户等级客户的总资产分别是多少?",
+   "difficulty": "medium",
+   "category": "指标查询",
+   "tables": [
+    "dws_cust_aset_d",
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "SELECT p.describe AS 客户等级, ROUND(SUM(s.nm_tot_aset+s.fc_pur_aset),4) AS 总资产 FROM dws_cust_aset_d s JOIN ads_cust_info_d a ON s.pty_id=a.pty_id AND a.data_dt='20260531' JOIN dim_public p ON a.cust_lvl_cd=p.code AND p.code_type_id='100' WHERE s.data_dt='20260331' GROUP BY p.describe ORDER BY 总资产 DESC",
+   "caliber_notes": "资产取 20260331 快照;等级经 100 解码;总资产=nm_tot_aset+fc_pur_aset。",
+   "expect_time": [
+    "20260331",
+    "20260531"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d",
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户等级",
+     "总资产"
+    ],
+    "rows": [
+     [
+      "紫金理财钻石卡客户",
+      374619378.0222
+     ],
+     [
+      "紫金理财白金卡客户",
+      140762627.2047
+     ],
+     [
+      "紫金理财金卡客户",
+      60061397.7867
+     ],
+     [
+      "紫金理财银卡客户",
+      19356475.8411
+     ],
+     [
+      "紫金理财卡客户",
+      1407726.9494
+     ],
+     [
+      "空",
+      134373.91
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 7712,
+   "sql": "SELECT dp.describe AS 客户等级, SUM(COALESCE(a.nm_tot_aset, 0) + COALESCE(a.fc_pur_aset, 0)) AS 总资产\nFROM dws_cust_aset_d a\nJOIN ads_cust_info_d c ON a.pty_id = c.pty_id AND c.data_dt = '20260531'\nJOIN dim_public dp ON c.cust_lvl_cd = dp.code AND dp.code_type_id = '100'\nWHERE a.data_dt = '20260331'\nGROUP BY dp.describe\nORDER BY 总资产 DESC",
+   "rows": [
+    [
+     "紫金理财钻石卡客户",
+     374619378.0222
+    ],
+    [
+     "紫金理财白金卡客户",
+     140762627.2047
+    ],
+    [
+     "紫金理财金卡客户",
+     60061397.7867
+    ],
+    [
+     "紫金理财银卡客户",
+     19356475.8411
+    ],
+    [
+     "紫金理财卡客户",
+     1407726.9494
+    ],
+    [
+     "空",
+     134373.91
+    ]
+   ],
+   "headers": [
+    "客户等级",
+    "总资产"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026-03-31 各客户等级总资产呈明显的金字塔分布，等级越高资产规模越大。紫金理财钻石卡客户以约 3.75 亿元居首，白金卡客户约 1.41 亿元，金卡客户约 6006 万元，银卡客户约 1936 万元，普通理财卡客户约 141 万元，另有少量等级为空的客户约 13 万元。总资产按\"总资产 = nm_tot_aset + fc_pur_aset\"口径计算，客户等级名称取自 dim_public.describe。需注意客户等级信息取自 2026-05-31 快照，与资产日期 2026-03-31 存在时间差，可能带来等级归属的偏差。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M12",
+   "question": "2026 年一季度交易额(买入+卖出)前 10 的客户是哪些?",
+   "difficulty": "medium",
+   "category": "数据分析",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT pty_id AS 客户号, ROUND(SUM(buy_amt+sell_amt),4) AS 交易额 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id ORDER BY 交易额 DESC LIMIT 10",
+   "caliber_notes": "一季度=20260101~20260331;交易额=buy_amt+sell_amt;取前10。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户号",
+     "交易额"
+    ],
+    "rows": [
+     [
+      "C000000000000336",
+      490354281.17
+     ],
+     [
+      "C000000000000007",
+      435798052.65
+     ],
+     [
+      "C000000000000267",
+      419949807.5798
+     ],
+     [
+      "C000000000000111",
+      231808750.48
+     ],
+     [
+      "C000000000000284",
+      204330579.22
+     ],
+     [
+      "C000000000000269",
+      204184802.17
+     ],
+     [
+      "C000000000000297",
+      183230246.05
+     ],
+     [
+      "C000000000000055",
+      149802490.0
+     ],
+     [
+      "C000000000000002",
+      146724773.79
+     ],
+     [
+      "C000000000000132",
+      135276787.87
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6973,
+   "sql": "SELECT pty_id AS 客户号, SUM(buy_amt + sell_amt) AS 交易额\nFROM dwd_cust_tran_d\nWHERE data_dt BETWEEN '20260101' AND '20260331'\nGROUP BY pty_id\nORDER BY 交易额 DESC\nLIMIT 10",
+   "rows": [
+    [
+     "C000000000000336",
+     490354281.17
+    ],
+    [
+     "C000000000000007",
+     435798052.65
+    ],
+    [
+     "C000000000000267",
+     419949807.5798
+    ],
+    [
+     "C000000000000111",
+     231808750.48
+    ],
+    [
+     "C000000000000284",
+     204330579.22
+    ],
+    [
+     "C000000000000269",
+     204184802.17
+    ],
+    [
+     "C000000000000297",
+     183230246.05
+    ],
+    [
+     "C000000000000055",
+     149802490.0
+    ],
+    [
+     "C000000000000002",
+     146724773.79
+    ],
+    [
+     "C000000000000132",
+     135276787.87
+    ]
+   ],
+   "headers": [
+    "客户号",
+    "交易额"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "排名",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度交易额排名前10的客户已列出，交易额按买入金额加卖出金额汇总计算。排名第一的是客户 C000000000000336，交易额约 4.90 亿元；其次是 C000000000000007（约 4.36 亿元）和 C000000000000267（约 4.20 亿元）。第4至第10名交易额在约 1.35 亿至 2.32 亿元之间，其中 C000000000000111 约 2.32 亿元，C000000000000132 约 1.35 亿元。整体看，前3名交易额明显高于其余客户，头部集中度较高。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M13",
+   "question": "2026 年一季度交易过招商银行相关产品的客户有多少人?",
+   "difficulty": "medium",
+   "category": "客户筛选",
+   "tables": [
+    "dwd_cust_tran_d",
+    "dim_product"
+   ],
+   "gold_sql": "SELECT COUNT(DISTINCT t.pty_id) AS 客户数 FROM dwd_cust_tran_d t JOIN dim_product d ON t.prdt_id=d.prdt_id WHERE t.data_dt BETWEEN '20260101' AND '20260331' AND d.prdt_name LIKE '%招商银行%'",
+   "caliber_notes": "招商银行产品按 prdt_name LIKE 匹配;客户按 pty_id 去重。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "客户数"
+    ],
+    "rows": [
+     [
+      2
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6248,
+   "sql": "SELECT COUNT(DISTINCT t.pty_id) AS 客户数\nFROM dwd_cust_tran_d t\nJOIN dim_product p ON t.prdt_id = p.prdt_id\nWHERE t.data_dt BETWEEN '20260101' AND '20260331'\n  AND p.prdt_name LIKE '%招商银行%'",
+   "rows": [
+    [
+     2
+    ]
+   ],
+   "headers": [
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度交易过招商银行相关产品的客户共有 2 人。该结论基于以下口径：交易指在交易明细表中有买卖记录，招商银行相关产品按产品名称包含\"招商银行\"匹配，时间范围为 2026-01-01 至 2026-03-31。由于结果仅 2 人，数量较少，可能与该类产品本身覆盖客户有限或名称匹配范围较窄有关。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "M14",
+   "question": "2026-03-31 持仓市值最高的 10 个产品二级分类是哪些?",
+   "difficulty": "medium",
+   "category": "数据分析",
+   "tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "gold_sql": "SELECT d.prdt_type_id AS 二级分类ID, d.prdt_type_name AS 二级分类, ROUND(SUM(h.mkt_val),4) AS 持仓市值 FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' GROUP BY d.prdt_type_id, d.prdt_type_name ORDER BY 持仓市值 DESC LIMIT 10",
+   "caliber_notes": "持仓取 20260331 快照;二级分类用 prdt_type_id+prdt_type_name 分组;取前10。",
+   "expect_time": [
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "二级分类ID",
+     "二级分类",
+     "持仓市值"
+    ],
+    "rows": [
+     [
+      "PT040100",
+      "A股",
+      317373893.69
+     ],
+     [
+      "PT040700",
+      "创业板",
+      97685253.74
+     ],
+     [
+      "PT030100",
+      "普通型国债",
+      38184000.0
+     ],
+     [
+      "PT041100",
+      "科创板",
+      36674226.08
+     ],
+     [
+      "PT040300",
+      "沪港通",
+      35381902.0
+     ],
+     [
+      "PT050900",
+      "天天发",
+      24457861.62
+     ],
+     [
+      "PT100200",
+      "私募管理人基金",
+      16328408.077
+     ],
+     [
+      "PT070100",
+      "受托理财",
+      10027986.236
+     ],
+     [
+      "PT050300",
+      "传统场外基金",
+      8530489.134
+     ],
+     [
+      "PT041500",
+      "北交所",
+      8463811.52
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 7064,
+   "sql": "SELECT dim_product.prdt_type_id AS 二级分类ID, dim_product.prdt_type_name AS 二级分类, SUM(dwd_cust_hold_d.mkt_val) AS 持仓市值 FROM dwd_cust_hold_d JOIN dim_product ON dwd_cust_hold_d.prdt_id = dim_product.prdt_id WHERE dwd_cust_hold_d.data_dt = '20260331' GROUP BY dim_product.prdt_type_id, dim_product.prdt_type_name ORDER BY 持仓市值 DESC LIMIT 10",
+   "rows": [
+    [
+     "PT040100",
+     "A股",
+     317373893.69
+    ],
+    [
+     "PT040700",
+     "创业板",
+     97685253.74
+    ],
+    [
+     "PT030100",
+     "普通型国债",
+     38184000.0
+    ],
+    [
+     "PT041100",
+     "科创板",
+     36674226.08
+    ],
+    [
+     "PT040300",
+     "沪港通",
+     35381902.0
+    ],
+    [
+     "PT050900",
+     "天天发",
+     24457861.62
+    ],
+    [
+     "PT100200",
+     "私募管理人基金",
+     16328408.077
+    ],
+    [
+     "PT070100",
+     "受托理财",
+     10027986.236
+    ],
+    [
+     "PT050300",
+     "传统场外基金",
+     8530489.134
+    ],
+    [
+     "PT041500",
+     "北交所",
+     8463811.52
+    ]
+   ],
+   "headers": [
+    "二级分类ID",
+    "二级分类",
+    "持仓市值"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "排名",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026-03-31 持仓市值最高的二级分类是 A股，达 3.17 亿元，远超其他分类。其次是创业板（约 9769 万元）和普通型国债（约 3818 万元），科创板、沪港通紧随其后，均在 3500 万元左右。整体看，权益类（A股、创业板、科创板、沪港通、北交所）占据主导，固收及理财类（国债、天天发、受托理财等）规模相对较小。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C01",
+   "question": "2026 年一季度全库客户的盈亏合计是多少?(盈亏=期末总资产-期初总资产+资金流出-资金流入)",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dws_cust_aset_d",
+    "dws_cust_fin_d"
+   ],
+   "gold_sql": "WITH s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id), f AS (SELECT pty_id, SUM(cash_out+tran_out+assign_out) AS o, SUM(cash_in+tran_in+assign_in) AS i FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id) SELECT ROUND(SUM(COALESCE(e.a,0)-COALESCE(s.a,0)+COALESCE(f.o,0)-COALESCE(f.i,0)),4) AS 盈亏合计 FROM e LEFT JOIN s ON e.pty_id=s.pty_id LEFT JOIN f ON e.pty_id=f.pty_id",
+   "caliber_notes": "盈亏=期末资产-期初资产+资金流出-资金流入(队伍口径约定);资产=nm_tot_aset+fc_pur_aset;资金流=cash/tran/assign 三列。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d",
+    "dws_cust_fin_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "盈亏合计"
+    ],
+    "rows": [
+     [
+      -12115125.9498
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8396,
+   "sql": "WITH s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id), f AS (SELECT pty_id, SUM(cash_out+tran_out+assign_out) o, SUM(cash_in+tran_in+assign_in) i FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id) SELECT ROUND(SUM(COALESCE(e.a,0)-COALESCE(s.a,0)+COALESCE(f.o,0)-COALESCE(f.i,0)),4) AS 盈亏合计 FROM e LEFT JOIN s ON e.pty_id=s.pty_id LEFT JOIN f ON e.pty_id=f.pty_id",
+   "rows": [
+    [
+     -12115125.9498
+    ]
+   ],
+   "headers": [
+    "盈亏合计"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度全库客户盈亏合计为 **-12,115,125.95 元**，即整体处于亏损状态。\n\n该结果按以下口径计算：期初资产取 2026-01-01 快照、期末资产取 2026-03-31 快照，盈亏 = 期末资产 − 期初资产 + 资金流出 − 资金流入，其中资金流入含 cash_in、tran_in、assign_in，资金流出含 cash_out、tran_out、assign_out。\n\n需注意，该口径以资产快照差额加资金净流出近似客户盈亏，未剔除分红、送转、税费等非交易因素影响，实际盈亏可能与此存在偏差。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C02",
+   "question": "紫金理财钻石卡、男性、40 岁以上、且 2026-03-31 持有比亚迪相关产品超过 1000 的客户,2026 年一季度盈亏合计是多少?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_public",
+    "dwd_cust_hold_d",
+    "dim_product",
+    "dws_cust_aset_d",
+    "dws_cust_fin_d"
+   ],
+   "gold_sql": "WITH seg AS (SELECT DISTINCT a.pty_id FROM ads_cust_info_d a JOIN dim_public l ON a.cust_lvl_cd=l.code AND l.code_type_id='100' JOIN dim_public g ON a.gender_cd=g.code AND g.code_type_id='500' WHERE a.data_dt='20260531' AND l.describe='紫金理财钻石卡客户' AND g.describe='男' AND a.cust_age>40 AND a.pty_id IN (SELECT h.pty_id FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.prdt_name LIKE '%比亚迪%' GROUP BY h.pty_id HAVING SUM(h.hold_cnt)>1000)), s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id), f AS (SELECT pty_id, SUM(cash_out+tran_out+assign_out) AS o, SUM(cash_in+tran_in+assign_in) AS i FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id) SELECT COUNT(*) AS 客户数, ROUND(SUM(COALESCE(e.a,0)-COALESCE(s.a,0)+COALESCE(f.o,0)-COALESCE(f.i,0)),4) AS 盈亏合计 FROM seg LEFT JOIN e ON seg.pty_id=e.pty_id LEFT JOIN s ON seg.pty_id=s.pty_id LEFT JOIN f ON seg.pty_id=f.pty_id",
+   "caliber_notes": "客群=钻石卡(100 解码)+男(500 解码)+age>40+期末持有比亚迪>1000 份;盈亏口径同 C01。",
+   "expect_time": [
+    "20260101",
+    "20260331",
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_public",
+    "dwd_cust_hold_d",
+    "dim_product",
+    "dws_cust_aset_d",
+    "dws_cust_fin_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户数",
+     "盈亏合计"
+    ],
+    "rows": [
+     [
+      1,
+      -661039.389
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 12593,
+   "sql": "WITH cust AS (\n  SELECT c.pty_id\n  FROM ads_cust_info_d c\n  JOIN dim_public l ON c.cust_lvl_cd = l.code AND l.code_type_id = '100'\n  JOIN dim_public g ON c.gender_cd = g.code AND g.code_type_id = '500'\n  WHERE c.data_dt = '20260531'\n    AND l.describe = '紫金理财钻石卡客户'\n    AND g.describe = '男'\n    AND c.cust_age > 40\n),\nhold AS (\n  SELECT h.pty_id\n  FROM dwd_cust_hold_d h\n  JOIN dim_product p ON h.prdt_id = p.prdt_id\n  WHERE h.data_dt = '20260331'\n    AND p.prdt_name LIKE '%比亚迪%'\n  GROUP BY h.pty_id\n  HAVING SUM(h.hold_cnt) > 1000\n),\ntarget AS (\n  SELECT c.pty_id\n  FROM cust c\n  JOIN hold h ON c.pty_id = h.pty_id\n),\ns AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) AS a\n  FROM dws_cust_aset_d\n  WHERE data_dt = '20260101'\n  GROUP BY pty_id\n),\ne AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) AS a\n  FROM dws_cust_aset_d\n  WHERE data_dt = '20260331'\n  GROUP BY pty_id\n),\nf AS (\n  SELECT pty_id,\n         SUM(cash_out + tran_out + assign_out) AS o,\n         SUM(cash_in + tran_in + assign_in) AS i\n  FROM dws_cust_fin_d\n  WHERE data_dt BETWEEN '20260101' AND '20260331'\n  GROUP BY pty_id\n)\nSELECT ROUND(SUM(COALESCE(e.a,0) - COALESCE(s.a,0) + COALESCE(f.o,0) - COALESCE(f.i,0)), 4) AS 盈亏合计,\n       COUNT(*) AS 客户数\nFROM target t\nLEFT JOIN e ON t.pty_id = e.pty_id\nLEFT JOIN s ON t.pty_id = s.pty_id\nLEFT JOIN f ON t.pty_id = f.pty_id",
+   "rows": [
+    [
+     -661039.389,
+     1
+    ]
+   ],
+   "headers": [
+    "盈亏合计",
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "符合条件的客户只有 1 位，其 2026 年一季度盈亏合计为 **-661,039.39 元**，即亏损约 66.1 万元。\n\n需要说明的是：客户筛选按 2026-05-31 的客户快照（紫金理财钻石卡、男性、年龄大于 40 岁），持仓条件按 2026-03-31 持有比亚迪相关产品份额合计超过 1000 的口径；盈亏按\"（期末总资产-期初总资产）+（资金流出-资金流入）\"计算，期初取 2026-01-01、期末取 2026-03-31。由于仅命中 1 位客户，该结果不具代表性，仅供参考。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C03",
+   "question": "2026 年一季度日均总资产超过 30 万、且股票交易额超过 10 万的客户有多少人?",
+   "difficulty": "complex",
+   "category": "客户筛选",
+   "tables": [
+    "dws_cust_aset_d",
+    "dwd_cust_tran_d",
+    "dim_product"
+   ],
+   "gold_sql": "WITH a AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset)/90.0 AS avg_aset FROM dws_cust_aset_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id), t AS (SELECT t.pty_id, SUM(t.buy_amt+t.sell_amt) AS amt FROM dwd_cust_tran_d t JOIN dim_product d ON t.prdt_id=d.prdt_id WHERE t.data_dt BETWEEN '20260101' AND '20260331' AND d.up_prdt_type_id='PT040000' GROUP BY t.pty_id) SELECT COUNT(*) AS 客户数 FROM a JOIN t ON a.pty_id=t.pty_id WHERE a.avg_aset>300000 AND t.amt>100000",
+   "caliber_notes": "日均=区间合计/90(资产表 90 天);股票=up_prdt_type_id='PT040000';交易额=buy_amt+sell_amt。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d",
+    "dwd_cust_tran_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "客户数"
+    ],
+    "rows": [
+     [
+      179
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 9727,
+   "sql": "WITH aset AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) / 90.0 AS avg_aset\n  FROM dws_cust_aset_d\n  WHERE data_dt BETWEEN '20260101' AND '20260331'\n  GROUP BY pty_id\n  HAVING SUM(nm_tot_aset + fc_pur_aset) / 90.0 > 300000\n),\ntran AS (\n  SELECT t.pty_id, SUM(t.buy_amt + t.sell_amt) AS stock_amt\n  FROM dwd_cust_tran_d t\n  JOIN dim_product p ON t.prdt_id = p.prdt_id\n  WHERE t.data_dt BETWEEN '20260101' AND '20260331'\n    AND p.up_prdt_type_id = 'PT040000'\n  GROUP BY t.pty_id\n  HAVING SUM(t.buy_amt + t.sell_amt) > 100000\n)\nSELECT COUNT(*) AS 客户人数\nFROM aset a\nJOIN tran t ON a.pty_id = t.pty_id",
+   "rows": [
+    [
+     179
+    ]
+   ],
+   "headers": [
+    "客户人数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "计划用到承载表 dim_product",
+     "source": "implied"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "筛选",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度，同时满足日均总资产超过30万元、股票交易额超过10万元的客户共有 **179 人**。\n\n统计口径说明：日均总资产按一季度90天计算，取\"总资产+场内理财资产\"合计除以90天；股票交易额按买入金额加卖出金额合计，且限定产品一级分类为股票。两个条件均在同一季度区间内分别筛选后再取交集，因此这179人是两项条件都达标的客户。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C04",
+   "question": "2026-03-31 相对 2026-01-01,总资产增幅最大的 10 个客户是哪些?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dws_cust_aset_d"
+   ],
+   "gold_sql": "WITH s AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260101' GROUP BY pty_id), e AS (SELECT pty_id, SUM(nm_tot_aset+fc_pur_aset) AS a FROM dws_cust_aset_d WHERE data_dt='20260331' GROUP BY pty_id) SELECT e.pty_id AS 客户号, ROUND(e.a-COALESCE(s.a,0),4) AS 资产增幅 FROM e LEFT JOIN s ON e.pty_id=s.pty_id ORDER BY 资产增幅 DESC LIMIT 10",
+   "caliber_notes": "增幅=期末-期初(期初缺记录按 0);资产=nm_tot_aset+fc_pur_aset;取前10。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户号",
+     "资产增幅"
+    ],
+    "rows": [
+     [
+      "C000000000000102",
+      6061179.89
+     ],
+     [
+      "C000000000000007",
+      4020828.39
+     ],
+     [
+      "C000000000000010",
+      2640611.298
+     ],
+     [
+      "C000000000000169",
+      1944799.92
+     ],
+     [
+      "C000000000000132",
+      1552473.356
+     ],
+     [
+      "C000000000000087",
+      1461192.05
+     ],
+     [
+      "C000000000000022",
+      1345154.48
+     ],
+     [
+      "C000000000000004",
+      1124950.279
+     ],
+     [
+      "C000000000000167",
+      1107790.91
+     ],
+     [
+      "C000000000000115",
+      1014903.36
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8324,
+   "sql": "WITH s AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) AS a\n  FROM dws_cust_aset_d\n  WHERE data_dt = '20260101'\n  GROUP BY pty_id\n),\ne AS (\n  SELECT pty_id, SUM(nm_tot_aset + fc_pur_aset) AS a\n  FROM dws_cust_aset_d\n  WHERE data_dt = '20260331'\n  GROUP BY pty_id\n)\nSELECT e.pty_id AS 客户号,\n       e.a - COALESCE(s.a, 0) AS 总资产增幅\nFROM e\nLEFT JOIN s ON e.pty_id = s.pty_id\nORDER BY 总资产增幅 DESC\nLIMIT 10",
+   "rows": [
+    [
+     "C000000000000102",
+     6061179.890000001
+    ],
+    [
+     "C000000000000007",
+     4020828.3900000006
+    ],
+    [
+     "C000000000000010",
+     2640611.2980000004
+    ],
+    [
+     "C000000000000169",
+     1944799.9200000018
+    ],
+    [
+     "C000000000000132",
+     1552473.356
+    ],
+    [
+     "C000000000000087",
+     1461192.05
+    ],
+    [
+     "C000000000000022",
+     1345154.4799999995
+    ],
+    [
+     "C000000000000004",
+     1124950.2789999992
+    ],
+    [
+     "C000000000000167",
+     1107790.9100000001
+    ],
+    [
+     "C000000000000115",
+     1014903.3599999994
+    ]
+   ],
+   "headers": [
+    "客户号",
+    "总资产增幅"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "排名",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026-03-31 相对 2026-01-01 总资产绝对增量最大的客户是 C000000000000102，增量约 606.1 万元，明显领先于其他客户。紧随其后的是 C000000000000007（约 402.1 万元）和 C000000000000010（约 264.1 万元），三者构成增量第一梯队。第 4 至第 10 名增量在约 101 万至 194 万元之间，依次为 C000000000000169、C000000000000132、C000000000000087、C000000000000022、C000000000000004、C000000000000167、C00000",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C05",
+   "question": "2026 年一季度各客户等级客户的资金净流入(流入-流出)分别是多少?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dws_cust_fin_d",
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "WITH f AS (SELECT pty_id, SUM(cash_in+tran_in+assign_in) AS i, SUM(cash_out+tran_out+assign_out) AS o FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id) SELECT p.describe AS 客户等级, ROUND(SUM(f.i-f.o),4) AS 净流入 FROM f JOIN ads_cust_info_d a ON f.pty_id=a.pty_id AND a.data_dt='20260531' JOIN dim_public p ON a.cust_lvl_cd=p.code AND p.code_type_id='100' GROUP BY p.describe ORDER BY 净流入 DESC",
+   "caliber_notes": "净流入=流入-流出;流入/流出=cash/tran/assign 三列合计;等级经 100 解码。",
+   "expect_time": [
+    "20260101",
+    "20260331",
+    "20260531"
+   ],
+   "expect_tables": [
+    "dws_cust_fin_d",
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户等级",
+     "净流入"
+    ],
+    "rows": [
+     [
+      "紫金理财金卡客户",
+      1646533.84
+     ],
+     [
+      "紫金理财银卡客户",
+      1206013.36
+     ],
+     [
+      "紫金理财钻石卡客户",
+      1021769.84
+     ],
+     [
+      "紫金理财白金卡客户",
+      749385.46
+     ],
+     [
+      "空",
+      66261.64
+     ],
+     [
+      "紫金理财卡客户",
+      52518.0
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 9232,
+   "sql": "SELECT dim_public.describe AS 客户等级,\n       SUM(dws_cust_fin_d.cash_in + dws_cust_fin_d.tran_in + dws_cust_fin_d.assign_in\n           - dws_cust_fin_d.cash_out - dws_cust_fin_d.tran_out - dws_cust_fin_d.assign_out) AS 资金净流入\nFROM dws_cust_fin_d\nJOIN ads_cust_info_d ON dws_cust_fin_d.pty_id = ads_cust_info_d.pty_id\nJOIN dim_public ON ads_cust_info_d.cust_lvl_cd = dim_public.code AND dim_public.code_type_id = '100'\nWHERE dws_cust_fin_d.data_dt BETWEEN '20260101' AND '20260331'\n  AND ads_cust_info_d.data_dt = '20260531'\nGROUP BY dim_public.describe\nORDER BY 资金净流入 DESC",
+   "rows": [
+    [
+     "紫金理财金卡客户",
+     1646533.8399999999
+    ],
+    [
+     "紫金理财银卡客户",
+     1206013.36
+    ],
+    [
+     "紫金理财钻石卡客户",
+     1021769.84
+    ],
+    [
+     "紫金理财白金卡客户",
+     749385.4600000004
+    ],
+    [
+     "空",
+     66261.64
+    ],
+    [
+     "紫金理财卡客户",
+     52518.0
+    ]
+   ],
+   "headers": [
+    "客户等级",
+    "资金净流入"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度各客户等级资金均呈净流入，其中紫金理财金卡客户净流入最高，达约164.65万元；其次是银卡客户约120.60万元，钻石卡客户约102.18万元，白金卡客户约74.94万元。等级为\"空\"（未匹配到等级名称）的客户净流入约6.63万元，紫金理财卡客户最低，约5.25万元。\n\n需说明的是：资金净流入按\"流入（现金+转账+划入）减流出（现金+转账+划出）\"口径计算；客户等级通过客户信息表关联字典表（code_type_id='100'）取得，且客户信息取的是2026-05-31快照，与一季度资金流水的时间口径不完全一致，可能影响等级归属的准确性。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C06",
+   "question": "2026 年一季度交易过招商银行相关产品、且 2026-03-31 持有中国平安相关产品的客户有多少人?",
+   "difficulty": "complex",
+   "category": "客户筛选",
+   "tables": [
+    "dwd_cust_tran_d",
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "gold_sql": "SELECT COUNT(*) AS 客户数 FROM (SELECT DISTINCT t.pty_id FROM dwd_cust_tran_d t JOIN dim_product d ON t.prdt_id=d.prdt_id WHERE t.data_dt BETWEEN '20260101' AND '20260331' AND d.prdt_name LIKE '%招商银行%' INTERSECT SELECT DISTINCT h.pty_id FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.prdt_name LIKE '%中国平安%')",
+   "caliber_notes": "两客群交集(INTERSECT);产品按 prdt_name LIKE 匹配。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d",
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "客户数"
+    ],
+    "rows": [
+     [
+      1
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8044,
+   "sql": "WITH a AS (\n  SELECT DISTINCT t.pty_id\n  FROM dwd_cust_tran_d t\n  JOIN dim_product p ON t.prdt_id = p.prdt_id\n  WHERE t.data_dt BETWEEN '20260101' AND '20260331'\n    AND p.prdt_name LIKE '%招商银行%'\n),\nb AS (\n  SELECT DISTINCT h.pty_id\n  FROM dwd_cust_hold_d h\n  JOIN dim_product p ON h.prdt_id = p.prdt_id\n  WHERE h.data_dt = '20260331'\n    AND h.hold_cnt > 0\n    AND p.prdt_name LIKE '%中国平安%'\n)\nSELECT COUNT(DISTINCT a.pty_id) AS 客户数\nFROM a\nJOIN b ON a.pty_id = b.pty_id",
+   "rows": [
+    [
+     1
+    ]
+   ],
+   "headers": [
+    "客户数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度交易过招商银行相关产品、且截至2026-03-31仍持有中国平安相关产品的客户共有 **1 人**。\n\n统计口径为：交易以 dwd_cust_tran_d 中 2026-01-01 至 2026-03-31 存在买卖记录为准；持有以 dwd_cust_hold_d 在 2026-03-31 快照中 hold_cnt>0 为准；产品匹配采用名称模糊匹配（含\"招商银行\"/\"中国平安\"）。\n\n该结果数量极少，可能与产品名称模糊匹配范围较窄、或同时满足两个条件的客户本身稀少有关。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C07",
+   "question": "2026-01-10 至 2026-02-15,科创板产品交易额超过 25 万的客户,按营业部统计交易额?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dwd_cust_tran_d",
+    "dim_product",
+    "ads_cust_info_d",
+    "dim_branch"
+   ],
+   "gold_sql": "WITH t AS (SELECT t.pty_id, SUM(t.buy_amt+t.sell_amt) AS amt FROM dwd_cust_tran_d t JOIN dim_product d ON t.prdt_id=d.prdt_id WHERE t.data_dt BETWEEN '20260110' AND '20260215' AND d.prdt_type_name LIKE '%科创%' GROUP BY t.pty_id HAVING SUM(t.buy_amt+t.sell_amt)>250000) SELECT b.up_org_name AS 分公司, b.org_name AS 营业部, COUNT(*) AS 客户数, ROUND(SUM(t.amt),4) AS 交易额 FROM t JOIN ads_cust_info_d a ON t.pty_id=a.pty_id AND a.data_dt='20260531' JOIN dim_branch b ON a.org_id=b.org_id GROUP BY b.up_org_name, b.org_name ORDER BY 交易额 DESC",
+   "caliber_notes": "交易量按金额口径(队伍约定)=buy_amt+sell_amt;科创板按 prdt_type_name LIKE;区间=20260110~20260215。",
+   "expect_time": [
+    "20260110",
+    "20260215"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d",
+    "dim_product",
+    "ads_cust_info_d",
+    "dim_branch"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "分公司",
+     "营业部",
+     "客户数",
+     "交易额"
+    ],
+    "rows": [
+     [
+      "苏州分公司",
+      "张家******营业部",
+      44,
+      172005739.27
+     ],
+     [
+      "无锡分公司",
+      "无锡******营业部",
+      1,
+      5114499.16
+     ],
+     [
+      "南京分公司",
+      "南京******营业部",
+      1,
+      625231.01
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 9320,
+   "sql": "WITH cust_tran AS (\n  SELECT t.pty_id, SUM(t.buy_amt + t.sell_amt) AS 交易额\n  FROM dwd_cust_tran_d t\n  JOIN dim_product p ON t.prdt_id = p.prdt_id\n  WHERE t.data_dt BETWEEN '20260110' AND '20260215'\n    AND p.prdt_type_name LIKE '%科创%'\n  GROUP BY t.pty_id\n  HAVING SUM(t.buy_amt + t.sell_amt) > 250000\n)\nSELECT b.up_org_name AS 分公司,\n       b.org_name AS 营业部,\n       COUNT(DISTINCT c.pty_id) AS 客户数,\n       SUM(c.交易额) AS 交易额\nFROM cust_tran c\nJOIN ads_cust_info_d a ON c.pty_id = a.pty_id\nJOIN dim_branch b ON a.org_id = b.org_id\nGROUP BY b.up_org_name, b.org_name\nORDER BY 交易额 DESC",
+   "rows": [
+    [
+     "苏州分公司",
+     "张家******营业部",
+     44,
+     172005739.27
+    ],
+    [
+     "无锡分公司",
+     "无锡******营业部",
+     1,
+     5114499.16
+    ],
+    [
+     "南京分公司",
+     "南京******营业部",
+     1,
+     625231.01
+    ]
+   ],
+   "headers": [
+    "分公司",
+    "营业部",
+    "客户数",
+    "交易额"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    },
+    {
+     "name": "营业部",
+     "table": "dim_branch",
+     "key": "org_id",
+     "evidence": "问题原文命中别名「营业部」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "筛选",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年1月10日至2月15日期间，科创板交易额超过25万元的客户共涉及3家营业部。其中苏州分公司张家******营业部贡献最大，有44名客户，合计交易额约1.72亿元，远超其他两家。无锡分公司无锡******营业部仅1名客户，交易额约511万元；南京分公司南京******营业部同样1名客户，交易额约62.5万元。整体看，达标客户高度集中在苏州张家港这一家营业部。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C08",
+   "question": "2026-03-31 各客户等级中总资产最高的客户及其资产是多少?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dws_cust_aset_d",
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "WITH r AS (SELECT s.pty_id, s.nm_tot_aset+s.fc_pur_aset AS total, p.describe AS 等级, ROW_NUMBER() OVER (PARTITION BY p.describe ORDER BY s.nm_tot_aset+s.fc_pur_aset DESC) AS rn FROM dws_cust_aset_d s JOIN ads_cust_info_d a ON s.pty_id=a.pty_id AND a.data_dt='20260531' JOIN dim_public p ON a.cust_lvl_cd=p.code AND p.code_type_id='100' WHERE s.data_dt='20260331') SELECT 等级, pty_id AS 客户号, ROUND(total,4) AS 总资产 FROM r WHERE rn=1 ORDER BY 总资产 DESC",
+   "caliber_notes": "资产取 20260331 快照;窗口按等级分组取最高。",
+   "expect_time": [
+    "20260331",
+    "20260531"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d",
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "等级",
+     "客户号",
+     "总资产"
+    ],
+    "rows": [
+     [
+      "紫金理财钻石卡客户",
+      "C000000000000004",
+      59662230.459
+     ],
+     [
+      "紫金理财白金卡客户",
+      "C000000000000150",
+      4775602.76
+     ],
+     [
+      "紫金理财金卡客户",
+      "C000000000000461",
+      961747.26
+     ],
+     [
+      "紫金理财银卡客户",
+      "C000000000000057",
+      536115.296
+     ],
+     [
+      "紫金理财卡客户",
+      "C000000000000439",
+      114624.22
+     ],
+     [
+      "空",
+      "C000000000000308",
+      19891.9
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8291,
+   "sql": "WITH cust_asset AS (\n  SELECT a.pty_id,\n         a.nm_tot_aset + a.fc_pur_aset AS 总资产\n  FROM dws_cust_aset_d a\n  WHERE a.data_dt = '20260331'\n),\nranked AS (\n  SELECT p.describe AS 客户等级,\n         c.pty_id AS 客户号,\n         c.总资产 AS 总资产,\n         ROW_NUMBER() OVER (PARTITION BY p.describe ORDER BY c.总资产 DESC) AS rn\n  FROM cust_asset c\n  JOIN ads_cust_info_d i ON c.pty_id = i.pty_id AND i.data_dt = '20260531'\n  JOIN dim_public p ON i.cust_lvl_cd = p.code AND p.code_type_id = '100'\n)\nSELECT 客户等级, 客户号, 总资产\nFROM ranked\nWHERE rn = 1\nORDER BY 客户等级 ASC, 总资产 DESC",
+   "rows": [
+    [
+     "空",
+     "C000000000000308",
+     19891.9
+    ],
+    [
+     "紫金理财卡客户",
+     "C000000000000439",
+     114624.22
+    ],
+    [
+     "紫金理财白金卡客户",
+     "C000000000000150",
+     4775602.76
+    ],
+    [
+     "紫金理财金卡客户",
+     "C000000000000461",
+     961747.26
+    ],
+    [
+     "紫金理财钻石卡客户",
+     "C000000000000004",
+     59662230.459
+    ],
+    [
+     "紫金理财银卡客户",
+     "C000000000000057",
+     536115.296
+    ]
+   ],
+   "headers": [
+    "客户等级",
+    "客户号",
+    "总资产"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "排名",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-03-31 资产快照统计，各客户等级中总资产最高的客户如下：钻石卡客户 C000000000000004 以约 5966.22 万元居首，白金卡客户 C000000000000150 约 477.56 万元，金卡客户 C000000000000461 约 96.17 万元，银卡客户 C000000000000057 约 53.61 万元，理财卡客户 C000000000000439 约 11.46 万元。此外还有一条客户等级为空的记录（客户 C000000000000308，总资产约 1.99 万元），说明该客户未匹配到有效的等级名称。总资产按\"总资产=nm_tot_aset+f",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C09",
+   "question": "2026 年一季度交易天数最多的 5 个客户是哪些?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT pty_id AS 客户号, COUNT(DISTINCT data_dt) AS 交易天数 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id ORDER BY 交易天数 DESC LIMIT 5",
+   "caliber_notes": "交易天数=COUNT(DISTINCT data_dt);取前5。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户号",
+     "交易天数"
+    ],
+    "rows": [
+     [
+      "C000000000000007",
+      56
+     ],
+     [
+      "C000000000000026",
+      56
+     ],
+     [
+      "C000000000000029",
+      56
+     ],
+     [
+      "C000000000000031",
+      56
+     ],
+     [
+      "C000000000000111",
+      56
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 7334,
+   "sql": "SELECT pty_id AS 客户号, COUNT(DISTINCT data_dt) AS 交易天数 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id ORDER BY 交易天数 DESC LIMIT 5",
+   "rows": [
+    [
+     "C000000000000007",
+     56
+    ],
+    [
+     "C000000000000026",
+     56
+    ],
+    [
+     "C000000000000029",
+     56
+    ],
+    [
+     "C000000000000031",
+     56
+    ],
+    [
+     "C000000000000111",
+     56
+    ]
+   ],
+   "headers": [
+    "客户号",
+    "交易天数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "排名",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度交易天数最多的5个客户分别是 C000000000000007、C000000000000026、C000000000000029、C000000000000031 和 C000000000000111，这5个客户的交易天数均为56天，并列第一。需要说明的是，本次统计按\"交易天数=去重后的交易日期数\"计算，且交易表数据实际覆盖20260105~20260331，因此一季度理论最大交易天数约为56天，这5位客户基本达到了满勤水平。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C10",
+   "question": "2026 年一季度交易天数超过 20 天的客户有多少人?",
+   "difficulty": "complex",
+   "category": "客户筛选",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT COUNT(*) AS 客户数 FROM (SELECT pty_id FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id HAVING COUNT(DISTINCT data_dt)>20)",
+   "caliber_notes": "高频客户=交易天数>20;交易天数=COUNT(DISTINCT data_dt)。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "客户数"
+    ],
+    "rows": [
+     [
+      201
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6178,
+   "sql": "SELECT COUNT(*) AS 客户人数 FROM (SELECT pty_id FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY pty_id HAVING COUNT(DISTINCT data_dt) > 20)",
+   "rows": [
+    [
+     201
+    ]
+   ],
+   "headers": [
+    "客户人数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度（1月1日至3月31日）交易天数超过20天的客户共有 **201 人**。统计口径为：按客户去重统计其在交易表中的不同交易日期数，超过20天即计入。需说明的是，交易表实际数据覆盖区间为 2026年1月5日至3月31日，因此该结果基于此实际可用数据范围得出。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C11",
+   "question": "按年龄段和客户等级交叉统计客户人数?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "gold_sql": "SELECT p.describe AS 客户等级, CASE WHEN cust_age<30 THEN '30岁以下' WHEN cust_age<50 THEN '30-50岁' WHEN cust_age<60 THEN '50-60岁' ELSE '60岁以上' END AS 年龄段, COUNT(*) AS 客户数 FROM ads_cust_info_d a JOIN dim_public p ON a.cust_lvl_cd=p.code AND p.code_type_id='100' WHERE a.data_dt='20260531' GROUP BY p.describe, 年龄段 ORDER BY 客户等级, 年龄段",
+   "caliber_notes": "年龄分桶与 M05 同;等级经 100 解码;交叉分组。",
+   "expect_time": [
+    "20260531"
+   ],
+   "expect_tables": [
+    "ads_cust_info_d",
+    "dim_public"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户等级",
+     "年龄段",
+     "客户数"
+    ],
+    "rows": [
+     [
+      "空",
+      "30-50岁",
+      3
+     ],
+     [
+      "空",
+      "50-60岁",
+      28
+     ],
+     [
+      "空",
+      "60岁以上",
+      34
+     ],
+     [
+      "紫金理财卡客户",
+      "30-50岁",
+      4
+     ],
+     [
+      "紫金理财卡客户",
+      "50-60岁",
+      25
+     ],
+     [
+      "紫金理财卡客户",
+      "60岁以上",
+      34
+     ],
+     [
+      "紫金理财白金卡客户",
+      "30-50岁",
+      2
+     ],
+     [
+      "紫金理财白金卡客户",
+      "50-60岁",
+      33
+     ],
+     [
+      "紫金理财白金卡客户",
+      "60岁以上",
+      38
+     ],
+     [
+      "紫金理财金卡客户",
+      "30-50岁",
+      9
+     ],
+     [
+      "紫金理财金卡客户",
+      "50-60岁",
+      40
+     ],
+     [
+      "紫金理财金卡客户",
+      "60岁以上",
+      69
+     ],
+     [
+      "紫金理财钻石卡客户",
+      "30-50岁",
+      2
+     ],
+     [
+      "紫金理财钻石卡客户",
+      "50-60岁",
+      13
+     ],
+     [
+      "紫金理财钻石卡客户",
+      "60岁以上",
+      15
+     ],
+     [
+      "紫金理财银卡客户",
+      "30-50岁",
+      14
+     ],
+     [
+      "紫金理财银卡客户",
+      "50-60岁",
+      65
+     ],
+     [
+      "紫金理财银卡客户",
+      "60岁以上",
+      72
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6358,
+   "sql": "SELECT\n  CASE\n    WHEN c.cust_age < 30 THEN '<30'\n    WHEN c.cust_age < 50 THEN '[30,50)'\n    WHEN c.cust_age < 60 THEN '[50,60)'\n    ELSE '≥60'\n  END AS 年龄段,\n  p.describe AS 客户等级,\n  COUNT(c.pty_id) AS 客户人数\nFROM ads_cust_info_d c\nLEFT JOIN dim_public p\n  ON c.cust_lvl_cd = p.code AND p.code_type_id = '100'\nWHERE c.data_dt = '20260531'\nGROUP BY 年龄段, 客户等级\nORDER BY 年龄段 ASC, 客户等级 ASC",
+   "rows": [
+    [
+     "[30,50)",
+     "空",
+     3
+    ],
+    [
+     "[30,50)",
+     "紫金理财卡客户",
+     4
+    ],
+    [
+     "[30,50)",
+     "紫金理财白金卡客户",
+     2
+    ],
+    [
+     "[30,50)",
+     "紫金理财金卡客户",
+     9
+    ],
+    [
+     "[30,50)",
+     "紫金理财钻石卡客户",
+     2
+    ],
+    [
+     "[30,50)",
+     "紫金理财银卡客户",
+     14
+    ],
+    [
+     "[50,60)",
+     "空",
+     28
+    ],
+    [
+     "[50,60)",
+     "紫金理财卡客户",
+     25
+    ],
+    [
+     "[50,60)",
+     "紫金理财白金卡客户",
+     33
+    ],
+    [
+     "[50,60)",
+     "紫金理财金卡客户",
+     40
+    ],
+    [
+     "[50,60)",
+     "紫金理财钻石卡客户",
+     13
+    ],
+    [
+     "[50,60)",
+     "紫金理财银卡客户",
+     65
+    ],
+    [
+     "≥60",
+     "空",
+     34
+    ],
+    [
+     "≥60",
+     "紫金理财卡客户",
+     34
+    ],
+    [
+     "≥60",
+     "紫金理财白金卡客户",
+     38
+    ],
+    [
+     "≥60",
+     "紫金理财金卡客户",
+     69
+    ],
+    [
+     "≥60",
+     "紫金理财钻石卡客户",
+     15
+    ],
+    [
+     "≥60",
+     "紫金理财银卡客户",
+     72
+    ]
+   ],
+   "headers": [
+    "年龄段",
+    "客户等级",
+    "客户人数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-05-31 客户主档快照统计，客户主要集中在 [50,60) 和 ≥60 两个年龄段，且各等级中\"紫金理财银卡客户\"人数最多。其中 [50,60) 段银卡客户 65 人、金卡 40 人、白金卡 33 人；≥60 段银卡 72 人、金卡 69 人、白金卡 38 人。相比之下 [30,50) 段整体人数偏少，各等级多在个位数（银卡 14 人、金卡 9 人，其余 2~4 人）。此外各年龄段均存在客户等级为空的记录（如 [50,60) 段 28 人、≥60 段 34 人），说明部分客户的等级编码未能在等级字典中匹配到名称。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "C12",
+   "question": "2026-03-31 各营业部客户总资产合计最高的 10 个营业部是哪些?",
+   "difficulty": "complex",
+   "category": "数据分析",
+   "tables": [
+    "dws_cust_aset_d",
+    "ads_cust_info_d",
+    "dim_branch"
+   ],
+   "gold_sql": "SELECT b.up_org_name AS 分公司, b.org_name AS 营业部, ROUND(SUM(s.nm_tot_aset+s.fc_pur_aset),4) AS 总资产 FROM dws_cust_aset_d s JOIN ads_cust_info_d a ON s.pty_id=a.pty_id AND a.data_dt='20260531' JOIN dim_branch b ON a.org_id=b.org_id WHERE s.data_dt='20260331' GROUP BY b.up_org_name, b.org_name ORDER BY 总资产 DESC LIMIT 10",
+   "caliber_notes": "资产取 20260331 快照;客户归属营业部经 org_id 上卷;取前10。",
+   "expect_time": [
+    "20260331",
+    "20260531"
+   ],
+   "expect_tables": [
+    "dws_cust_aset_d",
+    "ads_cust_info_d",
+    "dim_branch"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "分公司",
+     "营业部",
+     "总资产"
+    ],
+    "rows": [
+     [
+      "苏州分公司",
+      "张家******营业部",
+      566467337.8261
+     ],
+     [
+      "南京分公司",
+      "南京******营业部",
+      13465985.473
+     ],
+     [
+      "上海分公司",
+      "上海******营业部",
+      6432304.08
+     ],
+     [
+      "无锡分公司",
+      "无锡******营业部",
+      3320031.62
+     ],
+     [
+      "苏州分公司",
+      "苏州******营业部",
+      1755682.889
+     ],
+     [
+      "浙江分公司",
+      "杭州******营业部",
+      1525955.77
+     ],
+     [
+      "北京分公司",
+      "北京******营业部",
+      1165373.49
+     ],
+     [
+      "苏州分公司",
+      "常熟******营业部",
+      666165.68
+     ],
+     [
+      "安徽分公司",
+      "安徽******营业部",
+      500375.0
+     ],
+     [
+      "四川分公司",
+      "成都******营业部",
+      357710.617
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8095,
+   "sql": "SELECT\n  b.up_org_name AS 分公司,\n  b.org_name AS 营业部,\n  SUM(COALESCE(a.nm_tot_aset, 0) + COALESCE(a.fc_pur_aset, 0)) AS 总资产\nFROM dws_cust_aset_d a\nJOIN ads_cust_info_d c\n  ON a.pty_id = c.pty_id\n AND c.data_dt = '20260531'\nJOIN dim_branch b\n  ON c.org_id = b.org_id\nWHERE a.data_dt = '20260331'\nGROUP BY b.up_org_name, b.org_name\nORDER BY 总资产 DESC\nLIMIT 10",
+   "rows": [
+    [
+     "苏州分公司",
+     "张家******营业部",
+     566467337.8261
+    ],
+    [
+     "南京分公司",
+     "南京******营业部",
+     13465985.473
+    ],
+    [
+     "上海分公司",
+     "上海******营业部",
+     6432304.08
+    ],
+    [
+     "无锡分公司",
+     "无锡******营业部",
+     3320031.62
+    ],
+    [
+     "苏州分公司",
+     "苏州******营业部",
+     1755682.889
+    ],
+    [
+     "浙江分公司",
+     "杭州******营业部",
+     1525955.77
+    ],
+    [
+     "北京分公司",
+     "北京******营业部",
+     1165373.49
+    ],
+    [
+     "苏州分公司",
+     "常熟******营业部",
+     666165.68
+    ],
+    [
+     "安徽分公司",
+     "安徽******营业部",
+     500375.0
+    ],
+    [
+     "四川分公司",
+     "成都******营业部",
+     357710.617
+    ]
+   ],
+   "headers": [
+    "分公司",
+    "营业部",
+    "总资产"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "营业部",
+     "table": "dim_branch",
+     "key": "org_id",
+     "evidence": "问题原文命中别名「营业部」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "排名",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026-03-31 客户总资产合计最高的营业部是苏州分公司的张家港某营业部，总资产约 5.66 亿元，远超其他营业部，是第二名的 40 多倍。排名第二的是南京分公司某营业部（约 1346.6 万元），其后依次为上海（约 643.2 万元）、无锡（约 332.0 万元）、苏州（约 175.6 万元）等，第十名成都某营业部约 35.8 万元。整体来看，头部集中度极高，仅第一名就占据绝对优势，其余营业部资产规模差距明显。需说明的是，总资产按\"总资产+流通市值\"口径计算，营业部按分公司与营业部名称聚合，客户归属则基于 2026-05-31 的客户信息快照。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "T01",
+   "question": "2026 年一季度全库客户买入金额的逐月走势如何?(月份用 YYYYMM 表示)",
+   "difficulty": "medium",
+   "category": "趋势分析",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT substr(data_dt,1,6) AS 月份, ROUND(SUM(buy_amt),2) AS 买入金额 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY substr(data_dt,1,6) ORDER BY 月份",
+   "caliber_notes": "逐月趋势: 月份=substr(data_dt,1,6) 取 YYYYMM; 交易额=buy_amt; 区间 20260101~20260331。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "月份",
+     "买入金额"
+    ],
+    "rows": [
+     [
+      "202601",
+      1136534285.97
+     ],
+     [
+      "202602",
+      512845279.98
+     ],
+     [
+      "202603",
+      676734920.92
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8605,
+   "sql": "SELECT substr(t.data_dt,1,6) AS 月份, SUM(t.buy_amt) AS 买入金额\nFROM dwd_cust_tran_d t\nJOIN ads_cust_info_d c ON t.pty_id = c.pty_id\nWHERE t.data_dt BETWEEN '20260101' AND '20260331'\nGROUP BY substr(t.data_dt,1,6)\nORDER BY 月份 ASC",
+   "rows": [
+    [
+     "202601",
+     1136534285.9678
+    ],
+    [
+     "202602",
+     512845279.982
+    ],
+    [
+     "202603",
+     676734920.9234
+    ]
+   ],
+   "headers": [
+    "月份",
+    "买入金额"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "趋势",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度全库客户买入金额呈\"先高后低再回升\"的走势：1月最高，达约11.37亿元；2月大幅回落至约5.13亿元，环比下降约55%；3月回升至约6.77亿元，环比增长约32%。整体看，一季度合计买入金额约23.26亿元，2月为明显低点。以上统计基于 dwd_cust_tran_d 的 buy_amt 汇总，月份按 data_dt 前6位（YYYYMM）分组。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "T02",
+   "question": "2026 年一季度全库客户交易笔数(买入+卖出)的逐月走势如何?(月份用 YYYYMM 表示)",
+   "difficulty": "medium",
+   "category": "趋势分析",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT substr(data_dt,1,6) AS 月份, SUM(buy_cnt+sell_cnt) AS 交易笔数 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331' GROUP BY substr(data_dt,1,6) ORDER BY 月份",
+   "caliber_notes": "逐月趋势: 月份=substr(data_dt,1,6); 交易笔数=buy_cnt+sell_cnt; 区间 20260101~20260331。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "月份",
+     "交易笔数"
+    ],
+    "rows": [
+     [
+      "202601",
+      34416.0
+     ],
+     [
+      "202602",
+      15646.0
+     ],
+     [
+      "202603",
+      25805.0
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8803,
+   "sql": "SELECT substr(t.data_dt, 1, 6) AS 月份, SUM(t.buy_cnt + t.sell_cnt) AS 交易笔数\nFROM dwd_cust_tran_d t\nJOIN ads_cust_info_d c ON t.pty_id = c.pty_id\nWHERE t.data_dt BETWEEN '20260101' AND '20260331'\nGROUP BY substr(t.data_dt, 1, 6)\nORDER BY 月份 ASC",
+   "rows": [
+    [
+     "202601",
+     34416.0
+    ],
+    [
+     "202602",
+     15646.0
+    ],
+    [
+     "202603",
+     25805.0
+    ]
+   ],
+   "headers": [
+    "月份",
+    "交易笔数"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "趋势",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度全库客户的买入+卖出交易笔数呈\"先降后升\"的V型走势。1月最高，为34,416笔；2月大幅回落至15,646笔，环比下降约55%；3月回升至25,805笔，环比增长约65%。2月的低谷可能与春节假期交易日减少有关。统计口径为买入笔数加卖出笔数之和，月份按交易日期(data_dt)的YYYYMM归集。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "D01",
+   "question": "列出 2026-03-31 持有开放式基金(一级分类 PT050000)的客户号,最多 20 个",
+   "difficulty": "medium",
+   "category": "明细罗列",
+   "tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "gold_sql": "SELECT DISTINCT h.pty_id AS 客户号 FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.up_prdt_type_id='PT050000' AND h.hold_cnt>0 ORDER BY h.pty_id LIMIT 20",
+   "caliber_notes": "明细: 问'哪些客户'输出客户号 pty_id; 持有=hold_cnt>0; 一级分类用 up_prdt_type_id='PT050000'; 最多 20 个, 按客户号排序。",
+   "expect_time": [
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户号"
+    ],
+    "rows": [
+     [
+      "C000000000000002"
+     ],
+     [
+      "C000000000000003"
+     ],
+     [
+      "C000000000000004"
+     ],
+     [
+      "C000000000000005"
+     ],
+     [
+      "C000000000000006"
+     ],
+     [
+      "C000000000000008"
+     ],
+     [
+      "C000000000000009"
+     ],
+     [
+      "C000000000000010"
+     ],
+     [
+      "C000000000000014"
+     ],
+     [
+      "C000000000000018"
+     ],
+     [
+      "C000000000000019"
+     ],
+     [
+      "C000000000000020"
+     ],
+     [
+      "C000000000000021"
+     ],
+     [
+      "C000000000000022"
+     ],
+     [
+      "C000000000000026"
+     ],
+     [
+      "C000000000000031"
+     ],
+     [
+      "C000000000000033"
+     ],
+     [
+      "C000000000000034"
+     ],
+     [
+      "C000000000000035"
+     ],
+     [
+      "C000000000000036"
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8175,
+   "sql": "SELECT DISTINCT h.pty_id AS 客户号\nFROM dwd_cust_hold_d h\nJOIN dim_product p ON h.prdt_id = p.prdt_id\nJOIN ads_cust_info_d c ON h.pty_id = c.pty_id\nWHERE h.data_dt = '20260331'\n  AND p.up_prdt_type_id = 'PT050000'\n  AND c.data_dt = '20260531'\nLIMIT 20",
+   "rows": [
+    [
+     "C000000000000002"
+    ],
+    [
+     "C000000000000003"
+    ],
+    [
+     "C000000000000004"
+    ],
+    [
+     "C000000000000005"
+    ],
+    [
+     "C000000000000006"
+    ],
+    [
+     "C000000000000008"
+    ],
+    [
+     "C000000000000009"
+    ],
+    [
+     "C000000000000010"
+    ],
+    [
+     "C000000000000014"
+    ],
+    [
+     "C000000000000018"
+    ],
+    [
+     "C000000000000019"
+    ],
+    [
+     "C000000000000020"
+    ],
+    [
+     "C000000000000021"
+    ],
+    [
+     "C000000000000022"
+    ],
+    [
+     "C000000000000026"
+    ],
+    [
+     "C000000000000031"
+    ],
+    [
+     "C000000000000033"
+    ],
+    [
+     "C000000000000034"
+    ],
+    [
+     "C000000000000035"
+    ],
+    [
+     "C000000000000036"
+    ]
+   ],
+   "headers": [
+    "客户号"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "计划用到承载表 dim_product",
+     "source": "implied"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "明细",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026-03-31 持有开放式基金（一级分类 PT050000）的客户号已列出，共返回 20 个，达到查询上限。客户号从 C000000000000002 到 C000000000000036 不等，例如 C000000000000002、C000000000000003、C000000000000004 等。由于设置了 LIMIT 20，结果可能只是全部符合条件客户中的前 20 个，并非完整名单。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "D02",
+   "question": "列出 2026-03-31 持有比亚迪相关产品的客户号,最多 20 个",
+   "difficulty": "medium",
+   "category": "明细罗列",
+   "tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "gold_sql": "SELECT DISTINCT h.pty_id AS 客户号 FROM dwd_cust_hold_d h JOIN dim_product d ON h.prdt_id=d.prdt_id WHERE h.data_dt='20260331' AND d.prdt_name LIKE '%比亚迪%' AND h.hold_cnt>0 ORDER BY h.pty_id LIMIT 20",
+   "caliber_notes": "明细: 输出客户号 pty_id; 产品名 LIKE '%比亚迪%'; 持有=hold_cnt>0; 最多 20 个, 按客户号排序。",
+   "expect_time": [
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_hold_d",
+    "dim_product"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "grouped",
+    "headers": [
+     "客户号"
+    ],
+    "rows": [
+     [
+      "C000000000000034"
+     ],
+     [
+      "C000000000000103"
+     ],
+     [
+      "C000000000000267"
+     ],
+     [
+      "C000000000000353"
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 6232,
+   "sql": "SELECT DISTINCT h.pty_id AS 客户号\nFROM dwd_cust_hold_d h\nJOIN dim_product d ON h.prdt_id = d.prdt_id\nWHERE h.data_dt = '20260331'\n  AND d.prdt_name LIKE '%比亚迪%'\nLIMIT 20",
+   "rows": [
+    [
+     "C000000000000034"
+    ],
+    [
+     "C000000000000103"
+    ],
+    [
+     "C000000000000267"
+    ],
+    [
+     "C000000000000353"
+    ]
+   ],
+   "headers": [
+    "客户号"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    },
+    {
+     "name": "产品",
+     "table": "dim_product",
+     "key": "prdt_id",
+     "evidence": "问题原文命中别名「产品」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "明细",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "按 2026-03-31 快照统计，持有比亚迪相关产品的客户号共查到 4 个：C000000000000034、C000000000000103、C000000000000267、C000000000000353。这里\"比亚迪相关产品\"是按产品名称包含\"比亚迪\"来匹配的，\"持有\"指当日持仓表中存在记录。由于结果未达到 20 条上限，说明该日符合条件的客户就是这 4 个，而非被截断。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "OK"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "A01",
+   "question": "分析 2026 年一季度全库客户的资金净流入合计(流入-流出)是多少?",
+   "difficulty": "complex",
+   "category": "分析归因",
+   "tables": [
+    "dws_cust_fin_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(cash_in+tran_in+assign_in-cash_out-tran_out-assign_out),2) AS 资金净流入合计 FROM dws_cust_fin_d WHERE data_dt BETWEEN '20260101' AND '20260331'",
+   "caliber_notes": "分析: 净流入=流入-流出; 流入=cash_in+tran_in+assign_in, 流出=cash_out+tran_out+assign_out; 区间 20260101~20260331。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dws_cust_fin_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "资金净流入合计"
+    ],
+    "rows": [
+     [
+      4742482.14
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 8823,
+   "sql": "SELECT SUM(COALESCE(f.cash_in,0)+COALESCE(f.tran_in,0)+COALESCE(f.assign_in,0)-COALESCE(f.cash_out,0)-COALESCE(f.tran_out,0)-COALESCE(f.assign_out,0)) AS 资金净流入\nFROM dws_cust_fin_d f\nJOIN ads_cust_info_d c ON f.pty_id = c.pty_id\nWHERE f.data_dt BETWEEN '20260101' AND '20260331'",
+   "rows": [
+    [
+     4742482.140000001
+    ]
+   ],
+   "headers": [
+    "资金净流入"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "查询",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度全库客户的资金净流入合计约为 474.25 万元（4,742,482.14 元），即流入总额比流出总额多出这一金额。该口径按\"现金+转账+指派\"三类流入之和减去三类流出之和计算，统计区间为 2026-01-01 至 2026-03-31。结果仅一行汇总数据，可直接作为该季度整体资金净流入的结论。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  },
+  {
+   "id": "A02",
+   "question": "分析 2026 年一季度全库客户的买入佣金合计占买入金额的比例是多少?(输出列名用 佣金占比, 保留 6 位小数)",
+   "difficulty": "complex",
+   "category": "分析归因",
+   "tables": [
+    "dwd_cust_tran_d"
+   ],
+   "gold_sql": "SELECT ROUND(SUM(buy_rake)*1.0/SUM(buy_amt),6) AS 佣金占比 FROM dwd_cust_tran_d WHERE data_dt BETWEEN '20260101' AND '20260331'",
+   "caliber_notes": "分析: 买入佣金占比=SUM(buy_rake)/SUM(buy_amt); 区间 20260101~20260331; 输出列名用 佣金占比。",
+   "expect_time": [
+    "20260101",
+    "20260331"
+   ],
+   "expect_tables": [
+    "dwd_cust_tran_d"
+   ],
+   "scenario": "normal",
+   "gold_answer": {
+    "type": "scalar",
+    "headers": [
+     "佣金占比"
+    ],
+    "rows": [
+     [
+      0.000184
+     ]
+    ],
+    "tolerance": 1e-06
+   },
+   "model": "deepseek-chat",
+   "elapsed_ms": 7681,
+   "sql": "SELECT ROUND(SUM(t.buy_rake) * 1.0 / SUM(t.buy_amt), 6) AS 佣金占比\nFROM dwd_cust_tran_d t\nJOIN ads_cust_info_d c ON t.pty_id = c.pty_id\nWHERE t.data_dt BETWEEN '20260101' AND '20260331'",
+   "rows": [
+    [
+     0.000184
+    ]
+   ],
+   "headers": [
+    "佣金占比"
+   ],
+   "error": "",
+   "answerable": true,
+   "needs_clarification": [],
+   "entities": [
+    {
+     "name": "客户",
+     "table": "ads_cust_info_d",
+     "key": "pty_id",
+     "evidence": "问题原文命中别名「客户」",
+     "source": "explicit"
+    }
+   ],
+   "entities_covered": true,
+   "intent": "分析",
+   "repaired": false,
+   "empty_result": false,
+   "explanation": "2026年一季度全库客户的买入佣金合计占买入金额的比例约为 0.0184%（即万分之1.84）。该结果按买入佣金合计除以买入金额合计计算，并保留6位小数。",
+   "trace_tail": [
+    {
+     "stage": "执行",
+     "status": "OK"
+    },
+    {
+     "stage": "检查结果",
+     "status": "WARN"
+    },
+    {
+     "stage": "解释结果",
+     "status": "OK"
+    }
+   ],
+   "exec_ok": true,
+   "result_ok": true,
+   "caliber_ok": true,
+   "hallucination": false,
+   "halluc_detail": []
+  }
+ ]
+}

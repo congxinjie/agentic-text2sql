@@ -10,7 +10,7 @@
 #   2. **不联网调用 LLM** —— 端到端冒烟与 SSE 契约都用桩 LLM 驱动引擎(零 API 调用);
 #   3. 本文件与整个仓库**不出现任何密钥**(密钥只在本地 .env.local, 永不入库)。
 #
-# 八步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
+# 十步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
 name: CI
 
 on:
@@ -78,3 +78,7 @@ jobs:
       # 步骤 ⑨实体识别与校验断言(识别 + 五项校验 + 四个负对照)
       - name: ⑨ 实体识别与校验断言
         run: python3 ci_check.py --only entities
+
+      # 步骤 ⑩SQL 编译器前端断言(金标全可解析 + 错表/错列/WITH 后写 负对照)
+      - name: ⑩ SQL 编译器前端断言
+        run: python3 ci_check.py --only sql-ast

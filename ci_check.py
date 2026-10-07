@@ -11,7 +11,7 @@
 
 退出码: 全部通过 = 0; 任一 FAIL = 1。
 
-9 项检查与 M11 工作流步骤一一对应:
+10 项检查与 M11 工作流步骤一一对应:
     1 syntax       语法编译            所有 *.py 逐个 compile()
     2 deps         导入与无第三方包断言  加载引擎与演示层后 sys.modules 只多出标准库
     3 decouple     引擎解耦断言        引擎/演示层不出现券商域词(词表 + enterprise_biz.json 抽取)
@@ -21,6 +21,7 @@
     7 sse          SSE 接口契约冒烟      用合成库起 demo/server.py, 断言 /api/health 200 与阶段/done 事件
     8 privacy      受限字段屏蔽断言      合成库 + 注入敏感列: 样例不外发/SQL 直引与别名拦截/结果掩码, 并含负对照
     9 entities     实体识别与校验断言    注入实体词表: 识别与五项校验通过; 四个负对照(错表/错列/假 explicit/漏识别)均变红
+    10 sql-ast      SQL 编译器前端断言    词法+语句结构 AST: 金标全可解析; 错表/错列/WITH 后写语句负对照均被拦
 
 为什么这些能进 CI: 它们都不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网。
 评测(run_eval.py)与边界用例(run_edge_cases.py)刻意不在 CI 内 —— 见 README 的"CI / 自动校验"一节。
@@ -174,7 +175,7 @@ def check_syntax():
 
 # ---------------- 2. 导入与"无第三方包"断言 ----------------
 
-ALLOWED_EXTRA = {"text2sql", "demo", "demo.server", "__main__"}
+ALLOWED_EXTRA = {"text2sql", "sql_ast", "demo", "demo.server", "__main__"}
 
 
 def _module_allowed(name: str) -> bool:
@@ -743,6 +744,52 @@ def check_entities():
                   "计划提示词在注入词表前后逐字不变(实体不干扰计划); 不注入词表时零影响")
 
 
+def check_sql_ast():
+    """SQL 编译器前端断言: 金标全可解析 + 表/列/只读负例必被拦。"""
+    mod = get_engine()
+    items = json.loads((ROOT / "benchmark" / "benchmark.json").read_text(encoding="utf-8"))["items"]
+    problems = []
+    for it in items:
+        qid = it.get("id")
+        try:
+            st = mod.sql_ast.parse(it["gold_sql"])
+            if st.kind != "select" or not st.read_only:
+                problems.append(f"{qid}: kind={st.kind}")
+        except Exception as e:
+            problems.append(f"{qid}: {type(e).__name__}: {e}")
+    with tempfile.TemporaryDirectory(prefix="ci_ast_") as tmp:
+        db = Path(tmp) / "synth.db"
+        build_synth_db(db)
+        agent = mod.QueryAgent(str(db), "ci-stub-key", verbose=False, sample_rows=0)
+        try:
+            agent._ast_check("SELECT COUNT(*) FROM customers")
+        except ValueError as e:
+            problems.append(f"合法 SQL 被误拦: {e}")
+        for sql, tag in (
+            ("SELECT COUNT(*) FROM no_such_table", "错表"),
+            ("SELECT customers.no_such_col FROM customers", "错列"),
+            ("WITH x AS (SELECT 1) DELETE FROM customers", "WITH 后写语句"),
+        ):
+            try:
+                agent._ast_check(sql)
+                problems.append(f"{tag} 未被拦截: {sql}")
+            except ValueError:
+                pass
+        try:
+            _ph, _pr = agent._project_result(
+                ["月份", "买入笔数", "卖出笔数", "交易笔数"], [("202601", 1, 2, 3)],
+                {"output_columns": [{"name": "月份"}, {"name": "交易笔数"}]})
+            if list(_ph) != ["月份", "交易笔数"] or [tuple(x) for x in _pr] != [("202601", 3)]:
+                problems.append(f"输出列投影未生效: {_ph} {_pr}")
+        except Exception as e:
+            problems.append(f"输出列投影异常: {e}")
+    if problems:
+        for p in problems:
+            print(f"      {p}")
+        return False, f"SQL AST 断言失败 {len(problems)} 处"
+    return True, f"{len(items)} 道金标全可解析; 错表/错列/WITH 后写语句均被拦; 输出列投影裁剪正确"
+
+
 CHECKS = [
     ("syntax", "语法编译", check_syntax),
     ("deps", "导入与无第三方包断言", check_deps),
@@ -753,6 +800,7 @@ CHECKS = [
     ("sse", "SSE 接口契约冒烟", check_sse),
     ("privacy", "受限字段屏蔽断言", check_privacy),
     ("entities", "实体识别与校验断言", check_entities),
+    ("sql-ast", "SQL 编译器前端断言", check_sql_ast),
 ]
 
 

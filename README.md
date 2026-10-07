@@ -12,16 +12,16 @@
 | 端到端准确率 | **100%**（2026-10-08 独立双跑, 均 46/46） | ≥ 90% ✅ |
 | SQL 可执行率 / 口径正确率 | 100% / 100% | — |
 | 幻觉率 | 0% | — |
-| 响应时延 | P50 7.2s · P90 9.3s（2026-10-08 双跑平均, 46 问） | 分钟级 ✅ |
+| 响应时延 | P50 7.2s · P90 9.4s（2026-10-08 双跑平均, 46 问） | 分钟级 ✅ |
 | 分难度 | 简单 100% · 中等 100% · 复杂 100% | — |
 | 边界场景 E1–E9 | 9/9 兜底 | — |
 | 实体识别(M13) | 45/46 题产出实体(唯一无实体的 M10 是"账户维度"题, 如实声明 covered=false); 55 项(52 explicit / 3 implied); 五项程序化校验 | — |
 | 意图识别(M13+) | `Understanding.intent` 枚举(查询/筛选/排名/对比/趋势/明细/分析)+ 程序化兜底; 2026-10-08 双跑分布 查询31/排名7/筛选2/趋势2/明细2/对比1/分析1 | — |
 
 > 上表是 **2026-10-08 独立双跑(46 问: 40 题主集 + 6 道「趋势/明细/分析」意图扩展题)**的实测值：`python benchmark/run_eval.py`
-> 连跑两轮, 再用 `python benchmark/average_runs.py runs/run_20261008_012919.json runs/run_20261008_013502.json`
+> 连跑两轮, 再用 `python benchmark/average_runs.py runs/run_20261008_020615.json runs/run_20261008_021201.json`
 > 复核（输出「双轮均达标: 46/46」）; 时延取双跑平均。两份逐题明细与 `docs/评测报告-基线.md` 都是这两轮运行的真实产物。
-> 本轮 1 题触发过一次 SQL 自动修复(修复后通过), 报告 MAX=14.6s; 46 题 e2e 均 100%。
+> 本轮 0 题触发修复(输出列投影生效), 报告 MAX=12.6s; 46 题 e2e 均 100%。
 > 此前 **2026-10-06 M13 复算**双跑均 40/40, 双跑平均 P50 8.1s / P90 11.2s。
 >
 > **波动如实披露**：M10 复算共跑 4 轮全量, 3 轮 40/40; 另有 1 轮(`runs/run_20260917_135617.json`)
@@ -130,7 +130,7 @@ python3 ci_check.py        # 逐项打印 OK/FAIL；任一 FAIL 退出码非 0
 
 CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-latest` + 系统自带 `python3`，
 **不做任何第三方包安装**（零 pip、零 requirements）、**不调用真实 LLM**（一律桩）、工作流里无任何密钥，
-超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 9 项（`ci_check.py` 的检查项 id 一一对应）：
+超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 10 项（`ci_check.py` 的检查项 id 一一对应）：
 
 | # | 检查（`python3 ci_check.py --only <id>`） | 内容 |
 |---|---|---|
@@ -143,6 +143,7 @@ CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-la
 | 7 | `sse` | 用合成库起 `demo/server.py`：`/api/health` 返回 200，`/api/ask/stream` 流里既有阶段事件也有 `done` 事件（与 `POST /api/ask` 同源字段） |
 | 8 | `privacy` | 合成库 + 注入受限字段：断言样例数据不外发、SQL 直引/别名引用被拦截、结果列掩码，并带"不注入则原值可见"的负对照 |
 | 9 | `entities` | 合成库 + 注入实体词表：断言实体识别（问题直指/计划隐含 + 程序化抽取）与五项校验通过，并含四个负对照（错表/错列/假 explicit/漏识别） |
+| 10 | `sql-ast` | 纯标准库 SQL 编译器前端：46 道金标全部可解析且判为只读；负对照（错表/错列/`WITH` 后写语句）均被拦；并按计划声明列做输出列投影裁剪 |
 
 **刻意不跑什么（边界写清楚）**：`benchmark/run_eval.py`（46 问全量评测）与 `benchmark/run_edge_cases.py`
 （E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，不入 git，
@@ -156,7 +157,7 @@ CI 刻意保持「零联网、无密钥、≤ 5 分钟」，不去下载 151 MB 
 **本地跑同一套检查**（Windows / Linux 同一条命令；脚本用自身文件位置解析仓库根，与 cwd、盘符、系统无关）：
 
 ```bash
-python3 ci_check.py                  # 9 项全跑，全绿退出码 0
+python3 ci_check.py                  # 10 项全跑，全绿退出码 0
 python3 ci_check.py --only judge     # 只跑某一项（与 CI 的单步完全一致）
 python3 ci_check.py --only deps,judge
 python3 ci_check.py --list           # 列出检查项 id
