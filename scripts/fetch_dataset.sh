@@ -8,7 +8,8 @@
 #   bash scripts/fetch_dataset.sh --rebuild      # 拉完 CSV 后接着跑 benchmark/build_db.py 重建库(约 6 秒)
 #   bash scripts/fetch_dataset.sh --check        # 不下载, 只校验本地已有的附件(一个都没有则报错退出)
 #
-# 认证: 私有仓库需要 gh 已登录(gh auth status) 或导出 GH_TOKEN。
+# 认证: 公开仓库匿名直链即可(无需 gh/token); 私有仓库需要 gh 已登录(gh auth status) 或导出 GH_TOKEN。
+#       脚本按 "匿名直链 → gh → GH_TOKEN" 依次回退, 公开/私有都能用。
 # 幂等: 重复执行会覆盖同名文件(--clobber); 校验不通过则退出码非 0。
 set -euo pipefail
 
@@ -45,10 +46,19 @@ mkdir -p "$D"
 
 have_gh() { command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; }
 
-# 用 API 反查附件 id(私有仓库必须带 token), 再按 id 下载 —— 不依赖 gh。
+# 公开仓库: 匿名直链下载 release 附件(无需 gh/token); 失败则删除半成品, 返回非 0。
+curl_public_asset() {
+  local name="$1" out="$2" tmp="$2.part"
+  if curl -fsSL -o "$tmp" "https://github.com/$REPO/releases/download/$TAG/$name"; then
+    mv -f "$tmp" "$out"; return 0
+  fi
+  rm -f "$tmp"; return 1
+}
+
+# 私有仓库: 用 API 反查附件 id(需 GH_TOKEN), 再按 id 下载 —— 不依赖 gh。
 curl_asset() {
   local name="$1" out="$2" id
-  [ -n "${GH_TOKEN:-}" ] || { echo "[!] 无 gh 且未设 GH_TOKEN, 无法下载私有仓库附件" >&2; return 1; }
+  [ -n "${GH_TOKEN:-}" ] || { echo "[!] 私有仓库需要 gh 登录或 GH_TOKEN; 当前两者都没有" >&2; return 1; }
   id=$(curl -sS -H "Authorization: token $GH_TOKEN" \
         "https://api.github.com/repos/$REPO/releases/tags/$TAG" \
        | python3 -c "
@@ -69,21 +79,29 @@ else:
 if [ "$MODE" = "check" ]; then
   echo "[·] --check: 只校验, 不下载"
 else
-  if have_gh; then
-    echo "[·] 用 gh release download ($REPO @ $TAG) 拉 ${#WANT[@]} 个附件 → $D"
-    for f in "${WANT[@]}"; do
-      printf '    ↓ %s ... ' "$f"
-      gh release download "$TAG" -R "$REPO" -p "$f" -D "$D" --clobber
-      echo "ok"
-    done
-  else
-    echo "[·] 无可用 gh, 改用 curl + API 拉 ${#WANT[@]} 个附件 → $D"
-    for f in "${WANT[@]}"; do
-      printf '    ↓ %s ... ' "$f"
-      curl_asset "$f" "$D/$f"
-      echo "ok"
-    done
-  fi
+  echo "[·] 拉取 ${#WANT[@]} 个附件 ($REPO @ $TAG) → $D"
+  for f in "${WANT[@]}"; do
+    printf '    ↓ %s ... ' "$f"
+    # 1) 公开仓库: 匿名直链(无需任何认证)
+    if curl_public_asset "$f" "$D/$f"; then
+      echo "ok (匿名直链)"
+      continue
+    fi
+    # 2) 私有仓库 + gh 已登录
+    if have_gh && gh release download "$TAG" -R "$REPO" -p "$f" -D "$D" --clobber; then
+      echo "ok (gh release download)"
+      continue
+    fi
+    # 3) 私有仓库 + GH_TOKEN
+    if [ -n "${GH_TOKEN:-}" ] && curl_asset "$f" "$D/$f"; then
+      echo "ok (GH_TOKEN)"
+      continue
+    fi
+    echo "失败" >&2
+    echo "    匿名直链失败(仓库可能是 private 或附件不存在); 且 gh 未登录、GH_TOKEN 未设置。" >&2
+    echo "    公开仓库: 检查网络/代理; 私有仓库: 先 gh auth login 或 export GH_TOKEN=<token>" >&2
+    exit 1
+  done
 fi
 
 echo

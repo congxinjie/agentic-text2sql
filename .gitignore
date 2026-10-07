@@ -37,3 +37,6 @@ Agentic智能问数在客户营销场景的应用数据集/dws_cust_aset_d_20260
 
 # 运行日志（旋转文件日志 logs/text2sql.log、logs/demo_server.log，不入库）
 logs/
+
+# 数据集下载临时文件(scripts/fetch_dataset.sh 断点续传用)
+*.part
