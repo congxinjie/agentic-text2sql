@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """RAG schema linking 消融: 对 46 问用 BM25 召回 top-k 表, 统计命中金标 expect_tables 的召回率
-与 schema 字符缩减; 产出 docs/RAG检索报告.md。无需 LLM/密钥。"""
+与 schema 字符缩减; 产出 docs/RAG检索报告.md。离线部分无需 LLM/密钥。
+
+可选: `--run benchmark/runs/run_<ts>.json` 追加「端到端(RAG 模式)」章节,
+数字直接取自该全量 run 的 records/metrics, 不重算不估算。"""
 import json, sys
 from pathlib import Path
 
@@ -15,7 +18,54 @@ BIZ = json.loads((ROOT / "demo" / "enterprise_biz.json").read_text(encoding="utf
 OUT = ROOT / "docs" / "RAG检索报告.md"
 
 
-def main():
+
+def _e2e_section(run_path, n):
+    """从一次 retrieve_mode=rag 的全量 run JSON 生成端到端章节(真实数字, 不估算)。"""
+    run = json.loads(Path(run_path).read_text(encoding="utf-8"))
+    a = run["metrics"]["all"]
+    bd = run["metrics"]["by_difficulty"]
+    recs = run["records"]
+    has = [r for r in recs if r.get("rag_tables")]
+    hit = 0
+    for r in has:
+        exp = set(str(x).lower() for x in (r.get("expect_tables") or []))
+        got = set(str(x).lower() for x in r["rag_tables"])
+        if exp and exp.issubset(got):
+            hit += 1
+    avg = sum(len(r["rag_tables"]) for r in has) / max(1, len(has))
+    diffs = ("simple", "medium", "complex")
+
+    def row(fmt, name, key):
+        vals = [fmt.format(a[key])] + [fmt.format(bd[d][key]) if d in bd else "-" for d in diffs]
+        return "| " + name + " | " + " | ".join(vals) + " |"
+
+    lines = ["", "## 端到端(全量 46 问, retrieve_mode=rag, 真实 LLM)", "",
+             f"> 来源: `{Path(run_path).name}`(全量运行 `--no-report`, 未覆盖 docs/评测报告-基线.md); "
+             f"模型/环境与基线一致。",
+             "", "| 指标 | 全部 | 简单 | 中等 | 复杂 |", "|---|---|---|---|---|"]
+    lines.append(row("{:.1f}%", "SQL 可执行率", "exec_rate"))
+    lines.append(row("{:.1f}%", "结果正确率", "result_rate"))
+    lines.append(row("{:.1f}%", "口径正确率", "caliber_rate"))
+    lines.append(row("{:.1f}%", "端到端准确率", "e2e_rate"))
+    lines.append(row("{:.1f}%", "幻觉率", "hallucination_rate"))
+    lines += ["", "| 耗时 | 全部 | 简单 | 中等 | 复杂 |", "|---|---|---|---|---|"]
+    lines.append(row_ms(a, bd, diffs, "P50", "p50_ms"))
+    lines.append(row_ms(a, bd, diffs, "P90", "p90_ms"))
+    lines += ["",
+              f"- RAG 召回: 平均 {avg:.1f} 表/题; 金标表全覆盖 {hit}/{len(has)}(与离线 top-6 的 {hit}/{n} 一致)。",
+              "- 对照 full 基线(同代码默认模式, `docs/评测报告-基线.md`): e2e 100.0%, P50 7.1s / P90 9.1s。",
+              "- 注: 未召回的表仍以「表名/列名目录」进 prompt, 所以 C02/C03 漏召回未导致答错; 单轮数字不构成统计显著结论。"]
+    return lines
+
+
+def row_ms(a, bd, diffs, name, key):
+    vals = [f"{a[key]/1000:.1f}s"] + [f"{bd[d][key]/1000:.1f}s" if d in bd else "-" for d in diffs]
+    return "| " + name + " | " + " | ".join(vals) + " |"
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    run_path = argv[argv.index("--run") + 1] if "--run" in argv else None
     meta = T.get_table_meta(str(DB))
     ix = R.SchemaIndex(meta, BIZ.get("biz_context") or "")
     rag_agent = T.QueryAgent(str(DB), "k", verbose=False, sample_rows=0,
@@ -63,6 +113,8 @@ def main():
               f"- top-{max(ks)} 对金标表的召回率 {r:.1f}%; 平均 schema 字符 {avg6:.0f}, 为全库的 {100.0 * avg6 / full_chars:.1f}%。",
               "- 当前 8 表库上缩减有限; schema 越大(表数越多), RAG 的收益近似线性放大。",
               "- 引擎默认 retrieve_mode=full(不改变既有评测); retrieve_mode=rag 时才注入召回短 schema。"]
+    if run_path:
+        lines += _e2e_section(run_path, n)
     OUT.write_text("\n".join(lines), encoding="utf-8")
     print("wrote", OUT)
     for k in ks:
