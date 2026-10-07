@@ -181,7 +181,7 @@ function renderTable(headers, rows, truncated) {
 function render(data) {
   result.classList.remove("hidden");
   const elapsed = data.elapsed_s != null ? `耗时 ${data.elapsed_s}s · 模型 ${esc(data.model || "-")} · 只读库` : "";
-  $("metaView").textContent = elapsed;
+  $("metaView").textContent = elapsed + (data.intent ? " · 意图 " + data.intent : "");
 
   if (data.ok === false) {
     $("answerView").innerHTML = `<div class="fail">请求失败: ${esc(data.error || "未知错误")}</div>`;

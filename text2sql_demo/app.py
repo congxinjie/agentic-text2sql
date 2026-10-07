@@ -86,6 +86,7 @@ for m in st.session_state.messages:
             st.markdown(f"**结论**\n\n{m['content']}")
             p = m["payload"]
             st.caption(f"耗时 {p.get('elapsed_s')}s · 仅只读查询 · 口径与默认假设见折叠区")
+            st.caption(f"意图 {p.get('intent') or '-'}")
             if p.get("headers") is not None and p.get("rows"):
                 st.dataframe([dict(zip(p["headers"], row)) for row in p["rows"]],
                              use_container_width=True, hide_index=True)

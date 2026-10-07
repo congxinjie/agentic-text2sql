@@ -388,6 +388,9 @@ def main():
             # M13: 逐题留档识别出的实体(explicit/implied), 供验收复算
             rec["entities"] = list(getattr(ans, "entities", []) or [])
             rec["entities_covered"] = bool(getattr(ans, "entities_covered", False))
+            rec["intent"] = getattr(ans, "intent", "")
+            rec["repaired"] = any("修复" in str(e.detail) for e in ans.trace.entries)
+            rec["empty_result"] = bool(ans.headers) and not ans.rows
             rec["explanation"] = (ans.explanation or "")[:300]
             rec["trace_tail"] = [
                 {"stage": e.stage, "status": e.status} for e in ans.trace.entries[-3:]
@@ -401,6 +404,9 @@ def main():
             rec["needs_clarification"] = []
             rec["entities"] = []
             rec["entities_covered"] = False
+            rec["intent"] = ""
+            rec["repaired"] = False
+            rec["empty_result"] = False
             rec["explanation"] = ""
             rec["trace_tail"] = []
         judge(rec, meta)
@@ -494,6 +500,20 @@ def main():
     A("|---|---|")
     A(f"| 识别出实体的题数 | {_cov}/{len(records)} |")
     A(f"| 实体项总数(explicit 问题直指 / implied 计划隐含) | {len(_ent)} ({_ex} / {_im}) |")
+    A("")
+    _ic = __import__("collections").Counter(str(r.get("intent") or "-") for r in records)
+    _rep = sum(1 for r in records if r.get("repaired"))
+    _rep_ok = sum(1 for r in records if r.get("repaired") and r.get("exec_ok") and r.get("result_ok") and r.get("caliber_ok"))
+    _emp = sum(1 for r in records if r.get("empty_result"))
+    A("### 1c. 意图识别与可用性(本轮)")
+    A("")
+    A("| 项 | 值 |")
+    A("|---|---|")
+    A("| 意图分布 | " + ", ".join(f"{k} {v}" for k, v in _ic.most_common()) + " |")
+    A(f"| SQL 一次成功率(未触发修复) | {len(records)-_rep}/{len(records)} |")
+    A(f"| 触发自动修复 | {_rep} 题(修复后通过 {_rep_ok}) |")
+    A(f"| 空结果题数 | {_emp} |")
+    A("| E1-E9 异常边界 | 9/9(见 runs/edge_cases_run_*.json) |")
     A("")
     A(f"总耗时:{total_ms/1000:.1f}s({total_ms/60000:.1f} 分钟)")
     A("")

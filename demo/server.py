@@ -133,6 +133,7 @@ def run_ask(agent: QueryAgent, question: str, clarify: bool, on_stage=None) -> d
         "explanation": ans.explanation,
         "error": ans.error,
         "plan": plan,
+        "intent": getattr(ans, "intent", ""),
         "entities": list(getattr(ans, "entities", []) or []),
         "entities_covered": bool(getattr(ans, "entities_covered", False)),
         "caliber_assertions": matched_assertions(

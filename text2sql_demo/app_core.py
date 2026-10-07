@@ -57,6 +57,7 @@ def answer(agent: text2sql.QueryAgent, question: str, pending: dict | None = Non
             "text": ans.explanation or "(无结论)",
             "payload": {"sql": ans.sql, "headers": ans.headers, "rows": ans.rows,
                         "truncated": ans.truncated, "trace": ans.trace.render(),
+                        "intent": getattr(ans, "intent", ""),
                         "entities": list(getattr(ans, "entities", []) or []),
                         "entities_covered": bool(getattr(ans, "entities_covered", False)),
                         "elapsed_s": elapsed}}

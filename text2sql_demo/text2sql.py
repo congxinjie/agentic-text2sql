@@ -62,6 +62,7 @@ MAX_ROWS = 100          # 展示上限
 EXPLAIN_MAX_ROWS = 20   # 喂给解释阶段的数据行数上限
 MAX_CLARIFY_ROUNDS = 3  # 交互模式下最多追问轮数
 SENSITIVE_MASK = "***"   # 受限字段在样例/结果中的占位符
+INTENT_ENUM = ("查询", "筛选", "排名", "对比", "趋势", "明细", "分析")
 HERE = Path(__file__).resolve().parent
 
 # ================= 日志(纯标准库, 轮转文件) =================
@@ -488,6 +489,7 @@ class Understanding:
     answerable: bool = True
     reason: str = ""
     summary: str = ""
+    intent: str = ""  # 命题五要素之「意图」: 查询/筛选/排名/对比/趋势/明细/分析
     metrics: list[str] = field(default_factory=list)
     dimensions: list[str] = field(default_factory=list)
     filters: list[str] = field(default_factory=list)
@@ -518,6 +520,7 @@ class Answer:
     explanation: str = ""
     error: str = ""
     trace: Trace = field(default_factory=Trace)
+    intent: str = ""  # 命题五要素之「意图」(枚举)
     # M13: 识别出的业务实体(词表未注入时恒为空)与"本次是否覆盖了实体"的显式声明
     entities: list = field(default_factory=list)
     entities_covered: bool = False
@@ -529,6 +532,7 @@ UNDERSTAND_SYS = """你是数据分析 Agent 的"问题理解器"。根据数据
   "answerable": true,
   "reason": "不可回答时的原因; 可回答则为空字符串",
   "summary": "一句话重述用户意图",
+  "intent": "查询",
   "metrics": ["交易总额"],
   "dimensions": ["月份"],
   "filters": ["trans_date 在 2025 年"],
@@ -543,7 +547,9 @@ UNDERSTAND_SYS = """你是数据分析 Agent 的"问题理解器"。根据数据
 3. filters 用自然语言描述筛选条件; time_range 单独提取时间范围描述, 没有则空字符串。
 4. missing 是计算所必需但用户没提供的信息。required=true 表示缺了它无法计算(如指标没提); required=false 表示可用合理默认(如时间范围没提)。
 5. 一切字段/含义必须来自给定的表结构, 不要臆造库中不存在的概念。
-6. question_specificity 是自评: 问题有明确分析目标(指标/维度/筛选/时间至少有一项明确)给 "clear"; 问题含糊、没有明确统计对象(如"帮我分析一下""看看数据")给 "vague", 即使你猜测补了默认指标也必须给 "vague"。"""
+6. question_specificity 是自评: 问题有明确分析目标(指标/维度/筛选/时间至少有一项明确)给 "clear"; 问题含糊、没有明确统计对象(如"帮我分析一下""看看数据")给 "vague", 即使你猜测补了默认指标也必须给 "vague"。
+7. intent 从这 7 类里选一个: 查询/筛选/排名/对比/趋势/明细/分析。
+"""
 
 RETRIEVE_SYS = """你是数据分析 Agent 的"检索器"。根据问题理解, 从给定表结构中挑出回答该问题需要用到(或大概率用到)的表与列, 输出 JSON:
 {
@@ -696,10 +702,14 @@ class QueryAgent:
             return [str(x) if not isinstance(x, dict) else str(x.get("name") or x.get("item") or "")
                     for x in v if x]
 
+        _raw = str(data.get("intent", "") or "").strip()
+        _kw = (("最高", "排名"), ("最低", "排名"), ("前", "排名"), ("各", "对比"), ("分别", "对比"), ("哪些", "明细"), ("趋势", "趋势"), ("分析", "分析"))
+        _intent = _raw if _raw in INTENT_ENUM else next((v for k, v in _kw if k in question), "查询")
         u = Understanding(
             answerable=bool(data.get("answerable", True)),
             reason=str(data.get("reason", "")),
             summary=str(data.get("summary", "")),
+            intent=_intent,
             metrics=lst("metrics"),
             dimensions=lst("dimensions"),
             filters=lst("filters"),
@@ -719,7 +729,7 @@ class QueryAgent:
             detail = f"不可回答: {u.reason}"
             self._stage("理解问题", "FAIL", detail)
             return u
-        parts = []
+        parts = [f"意图={u.intent}"]
         if u.metrics:
             parts.append(f"指标=[{', '.join(u.metrics)}]")
         if u.dimensions:
@@ -1327,6 +1337,7 @@ class QueryAgent:
             ans.trace = self.trace
             return ans
         ans.trace = self.trace
+        ans.intent = getattr(u, "intent", "")
         # M6.1: LLM 自相矛盾兜底——仅因分析目标缺失不应判不可答; 允许追问时优先转为追问
         if (clarify and not u.answerable and u.missing_required
                 and any(any(k in m for k in ("指标", "分析目标", "统计对象", "分析对象")) for m in u.missing_required)):
@@ -1469,6 +1480,8 @@ def print_table(rows, headers):
 def print_answer(ans: Answer):
     print("\n" + "=" * 64)
     print(f"问题: {ans.question}")
+    if getattr(ans, "intent", ""):
+        print(f"[意图] {ans.intent}")
     if not ans.answerable:
         print(f"[拒绝回答] {ans.reject_reason}")
         print(ans.trace.render())
