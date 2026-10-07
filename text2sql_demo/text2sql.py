@@ -39,6 +39,7 @@ import re
 import sqlite3
 import sql_ast
 import sql_plan
+import schema_rag
 import sys
 import time
 import unicodedata
@@ -234,7 +235,8 @@ def llm_json(system: str, user: str, api_key: str, max_tokens: int = 2000) -> di
 
 # ================= 数据库与安全 =================
 def build_schema(db_path: str, sample_rows: int = 2,
-                 sensitive_columns: list | None = None) -> str:
+                 sensitive_columns: list | None = None,
+                 tables: list | None = None) -> str:
     """从 sqlite_master 提取表结构; sample_rows>0 时每表附 N 行样例数据(默认 2, 保持既有行为)。
 
     M9: sample_rows=0 表示完全不把样例数据拼进 schema(即不发给外部 LLM)。
@@ -242,6 +244,7 @@ def build_schema(db_path: str, sample_rows: int = 2,
           这些列的真实值绝不进入 schema, 也就不会发往外部 LLM。
     """
     sensitive = {str(c).strip().lower() for c in (sensitive_columns or []) if str(c).strip()}
+    want = {str(t).strip().lower() for t in (tables or []) if str(t).strip()} or None
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     parts = []
     objects = conn.execute(
@@ -250,6 +253,8 @@ def build_schema(db_path: str, sample_rows: int = 2,
     ).fetchall()
     sample_n = max(0, int(sample_rows))
     for ttype, name, ddl in objects:
+        if want is not None and str(name).lower() not in want:
+            continue
         if ddl:
             parts.append(f"-- {ttype}: {name}\n{ddl};")
         if sample_n <= 0:  # 关闭样例数据出境
@@ -527,6 +532,7 @@ class Answer:
     entities: list = field(default_factory=list)
     entities_covered: bool = False
     query_plan: dict = field(default_factory=dict)  # 执行计划分析(全表扫描/索引命中)
+    rag_tables: list = field(default_factory=list)  # RAG 召回的 schema 表
 
 
 # ================= 各阶段 Prompt =================
@@ -610,7 +616,8 @@ class QueryAgent:
                  biz_context: str | None = None, sql_hints: dict | None = None,
                  caliber_assertions: list | None = None, sample_rows: int = 2,
                  sensitive_columns: list | None = None, on_stage=None,
-                 entities: dict | None = None):
+                 entities: dict | None = None,
+                 retrieve_mode: str = "full", rag_top_k: int = 6):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
@@ -641,6 +648,12 @@ class QueryAgent:
         self.on_stage = on_stage
         self.meta = get_table_meta(db_path)
         self.schema = build_schema(db_path, self.sample_rows, self.sensitive_columns)
+        # RAG schema linking: full(默认, 注入全库 schema) / rag(按问题召回 top-k 表)
+        self.retrieve_mode = str(retrieve_mode or "full").strip().lower()
+        self.rag_top_k = max(1, int(rag_top_k))
+        self._rag_tables = []
+        self._short_schema_cache = {}
+        self._rag_index = schema_rag.SchemaIndex(self.meta, self.biz_context) if self.retrieve_mode == "rag" else None
         self.trace = Trace()
         self._stage_idx = 0
         self._query_plan = {}
@@ -691,8 +704,39 @@ class QueryAgent:
         # M10: 阶段结束回调(放在最后, 保证既有输出顺序不变)
         self._notify(title, status, detail)
 
+    def _rag_select(self, question: str) -> list:
+        if self._rag_index is None:
+            return []
+        self._rag_tables = list(self._rag_index.select(question, self.rag_top_k))
+        return self._rag_tables
+
+    def _short_schema(self, tables: list) -> str:
+        parts = []
+        for t in tables:
+            key = str(t).lower()
+            if key not in self._short_schema_cache:
+                self._short_schema_cache[key] = build_schema(
+                    self.db_path, self.sample_rows, self.sensitive_columns, tables=[t])
+            parts.append(self._short_schema_cache[key])
+        return "\n\n".join(parts)
+
+    def _schema_catalog(self, exclude=None) -> str:
+        ex = {str(t).lower() for t in (exclude or [])}
+        rows = []
+        for t, cols in self.meta.items():
+            if t.lower() in ex:
+                continue
+            rows.append(f"{t}(" + "/".join(cols) + ")")
+        return "\n".join(rows)
+
     def _ctx(self) -> str:
-        return f"数据库结构:\n{self.schema}\n\n业务说明:\n{self.biz_context}"
+        schema = self.schema
+        if self.retrieve_mode == "rag" and self._rag_tables:
+            schema = "【候选表完整结构】\n" + self._short_schema(self._rag_tables)
+            rest = self._schema_catalog(self._rag_tables)
+            if rest:
+                schema += "\n\n【其余表目录(仅表名/列名)】\n" + rest
+        return f"数据库结构:\n{schema}\n\n业务说明:\n{self.biz_context}"
 
     # ---- 1 理解问题 ----
     def _understand(self, question: str) -> Understanding:
@@ -1380,6 +1424,10 @@ class QueryAgent:
         self.trace = Trace()
         ans = Answer(question=question)
         self._query_plan = {}
+        self._rag_tables = []
+        if self.retrieve_mode == "rag":
+            self._rag_select(question)
+            LOG.info("[RAG] 召回表=%s schema字符=%d/%d", ",".join(self._rag_tables), len(self._short_schema(self._rag_tables)), len(self.schema))
         # M9: 只记问题长度与追问模式, 不记问题正文(防止问题里夹带客户号等数据)
         LOG.info("[问答开始] 问题长度=%d 追问模式=%s 样例行数=%d",
                  len(question), clarify, self.sample_rows)
@@ -1393,6 +1441,7 @@ class QueryAgent:
             return ans
         ans.trace = self.trace
         ans.intent = getattr(u, "intent", "")
+        ans.rag_tables = list(self._rag_tables)
         # M6.1: LLM 自相矛盾兜底——仅因分析目标缺失不应判不可答; 允许追问时优先转为追问
         if (clarify and not u.answerable and u.missing_required
                 and any(any(k in m for k in ("指标", "分析目标", "统计对象", "分析对象")) for m in u.missing_required)):

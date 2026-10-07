@@ -86,3 +86,7 @@ jobs:
       # 步骤 ⑪查询计划与索引断言(EXPLAIN: 全表扫描/索引搜索/覆盖索引 + 负对照)
       - name: ⑪ 查询计划与索引断言
         run: python3 ci_check.py --only query-plan
+
+      # 步骤 ⑫RAG schema linking 召回断言(BM25+中文 bigram: 承载表/表名直投/top-k/负对照)
+      - name: ⑫ RAG schema linking 召回断言
+        run: python3 ci_check.py --only schema-rag

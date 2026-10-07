@@ -363,7 +363,9 @@ def main():
     forced_model = os.environ.get("LLM_MODEL", "").strip()
     agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
                        sql_hints=SQL_HINTS, caliber_assertions=CALIBER_ASSERTIONS,
-                       sensitive_columns=SENSITIVE_COLUMNS, entities=ENTITIES)
+                       sensitive_columns=SENSITIVE_COLUMNS, entities=ENTITIES,
+                       retrieve_mode=os.environ.get("RETRIEVE_MODE", "full").strip().lower(),
+                       rag_top_k=int(os.environ.get("RAG_TOPK", "6")))
 
     print(f"评测开始: {len(items)}/{len(all_items)} 问{' (部分运行: 不覆盖基线报告)' if partial else ''}, "
           f"全量 deepseek-chat(空响应实验结论, 双跑取平均)"
@@ -389,6 +391,7 @@ def main():
             rec["entities"] = list(getattr(ans, "entities", []) or [])
             rec["entities_covered"] = bool(getattr(ans, "entities_covered", False))
             rec["query_plan"] = getattr(ans, "query_plan", {}) or {}
+            rec["rag_tables"] = list(getattr(ans, "rag_tables", []) or [])
             rec["intent"] = getattr(ans, "intent", "")
             rec["repaired"] = any("修复" in str(e.detail) for e in ans.trace.entries)
             rec["empty_result"] = bool(ans.headers) and not ans.rows
@@ -406,6 +409,7 @@ def main():
             rec["entities"] = []
             rec["entities_covered"] = False
             rec["query_plan"] = {}
+            rec["rag_tables"] = []
             rec["intent"] = ""
             rec["repaired"] = False
             rec["empty_result"] = False
@@ -532,6 +536,22 @@ def main():
         A(f"| 命中索引的题数(索引搜索/索引扫描) | {_used}/{len(records)} |")
         A(f"| 含全表扫描的题数 | {_full} |")
         A(f"| 含临时 B 树的题数 | {_temp} |")
+        A("")
+    _rag = [r for r in records if r.get("rag_tables")]
+    if _rag:
+        _rn = len(_rag)
+        _ravg = sum(len(r["rag_tables"]) for r in _rag) / _rn
+        _rhit = 0
+        for _r in _rag:
+            _rexp = set(str(x).lower() for x in (_r.get("expect_tables") or []))
+            if _rexp.issubset(set(str(x).lower() for x in _r["rag_tables"])):
+                _rhit += 1
+        A("### 1e. RAG schema linking")
+        A("")
+        A("| 项 | 值 |")
+        A("|---|---|")
+        A(f"| 平均召回表数 | {_ravg:.1f} |")
+        A(f"| 召回覆盖金标表 | {_rhit}/{_rn} |")
         A("")
     A(f"总耗时:{total_ms/1000:.1f}s({total_ms/60000:.1f} 分钟)")
     A("")

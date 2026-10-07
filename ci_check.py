@@ -3,7 +3,7 @@
 """M11 工程化 CI 自动校验 —— 纯标准库, 零第三方依赖, 零真实 LLM 调用。
 
 用法(在仓库任意目录下都能跑, 所有路径按本文件位置解析, 不依赖 cwd):
-    python3 ci_check.py                      # 跑全部 7 项检查, 逐项打印 OK/FAIL
+    python3 ci_check.py                      # 跑全部 12 项检查, 逐项打印 OK/FAIL
     python3 ci_check.py --only deps          # 只跑某一项(CI 里每步只跑一项, 便于定位)
     python3 ci_check.py --only deps,judge    # 跑多指定项
     python3 ci_check.py --list               # 列出检查项 id
@@ -11,7 +11,7 @@
 
 退出码: 全部通过 = 0; 任一 FAIL = 1。
 
-11 项检查与 M11 工作流步骤一一对应:
+12 项检查与 M11 工作流步骤一一对应:
     1 syntax       语法编译            所有 *.py 逐个 compile()
     2 deps         导入与无第三方包断言  加载引擎与演示层后 sys.modules 只多出标准库
     3 decouple     引擎解耦断言        引擎/演示层不出现券商域词(词表 + enterprise_biz.json 抽取)
@@ -23,6 +23,7 @@
     9 entities     实体识别与校验断言    注入实体词表: 识别与五项校验通过; 四个负对照(错表/错列/假 explicit/漏识别)均变红
     10 sql-ast      SQL 编译器前端断言    词法+语句结构 AST: 金标全可解析; 错表/错列/WITH 后写语句负对照均被拦
     11 query-plan   查询计划与索引断言    EXPLAIN QUERY PLAN: 全表扫描/索引搜索/覆盖索引分类 + 引擎接入 + 负对照
+    12 schema-rag   RAG schema linking 召回断言  BM25+中文 bigram: 承载表召回/表名直投/top-k/无信号负对照 + 中文分词
 
 为什么这些能进 CI: 它们都不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网。
 评测(run_eval.py)与边界用例(run_edge_cases.py)刻意不在 CI 内 —— 见 README 的"CI / 自动校验"一节。
@@ -176,7 +177,7 @@ def check_syntax():
 
 # ---------------- 2. 导入与"无第三方包"断言 ----------------
 
-ALLOWED_EXTRA = {"text2sql", "sql_ast", "sql_plan", "demo", "demo.server", "__main__"}
+ALLOWED_EXTRA = {"text2sql", "sql_ast", "sql_plan", "schema_rag", "demo", "demo.server", "__main__"}
 
 
 def _module_allowed(name: str) -> bool:
@@ -791,6 +792,69 @@ def check_sql_ast():
     return True, f"{len(items)} 道金标全可解析; 错表/错列/WITH 后写语句均被拦; 输出列投影裁剪正确"
 
 
+def check_schema_rag():
+    """RAG schema linking 断言: 合成词表召回金标表 + top-k 约束 + 确定性 + 中文分词 + 负对照。
+
+    不依赖 enterprise.db / 不调 LLM —— 用 4 张合成表 + 中文 biz_context 验证
+    BM25 + bigram 的召回行为, 与 rag_ablation.py 的离线口径一致。
+    """
+    mod = get_engine()
+    R = mod.schema_rag
+    meta = {
+        "customers": ["cust_id", "cust_name", "region", "cust_type"],
+        "assets": ["cust_id", "asset_code", "market_value", "stat_date"],
+        "transactions": ["cust_id", "trade_date", "amount", "side"],
+        "campaigns": ["campaign_id", "campaign_name", "channel"],
+    }
+    biz = ("客户资产: assets 表按 stat_date 记录每个客户的市值 market_value。\n"
+           "交易流水: transactions 表记录客户买卖 side 与成交金额 amount。\n"
+           "营销活动: campaigns 表记录活动名称与投放渠道 channel。")
+    problems = []
+    ix = R.SchemaIndex(meta, biz)
+
+    # 1) 自然语言问题 -> 必召回承载表(中文 bigram + biz_context 映射)
+    for q, want in (
+        ("查询客户资产市值", "assets"),
+        ("最近交易流水金额", "transactions"),
+        ("各营销活动渠道分布", "campaigns"),
+    ):
+        sel = ix.select(q, 3)
+        if want not in sel:
+            problems.append(f"未召回 {want}: {q!r} -> {sel}")
+
+    # 2) 问题直指表名 -> 直投加分, top-1 必须是该表
+    sel = ix.select("customers 表有多少客户", 1)
+    if sel != ["customers"]:
+        problems.append(f"表名直指未优先召回: {sel}")
+
+    # 3) top-k 上限 + 只返回真实表 + 确定性(同一问题两次一致)
+    for k in (1, 2, 4):
+        sel = ix.select("客户资产与交易", k)
+        if len(sel) > k or not set(sel) <= set(meta):
+            problems.append(f"top-{k} 越界/幻觉表: {sel}")
+    if ix.select("客户资产与交易", 3) != ix.select("客户资产与交易", 3):
+        problems.append("同一问题两次召回结果不一致")
+
+    # 4) 负对照: 空问题/无信号问题不得乱召回
+    for q in ("", "???", "!!!"):
+        sel = ix.select(q, 3)
+        if sel:
+            problems.append(f"无信号问题不应召回表: {q!r} -> {sel}")
+
+    # 5) 中文 bigram 分词(免第三方分词器)
+    toks = R.tokens("客户资产")
+    for t in ("客户", "户资", "资产"):
+        if t not in toks:
+            problems.append(f"中文 bigram 分词缺 {t}: {toks}")
+
+    if problems:
+        for p in problems:
+            print(f"      {p}")
+        return False, f"RAG schema linking 断言失败 {len(problems)} 处"
+    return True, ("BM25 召回承载表/表名直投/top-k 上限/无幻觉表/确定性/中文 bigram/无信号负对照 "
+                  "全部通过(不依赖 enterprise.db)")
+
+
 def check_query_plan():
     """查询计划/索引断言: EXPLAIN QUERY PLAN 分类 + 引擎接入 + 负对照。"""
     mod = get_engine()
@@ -845,6 +909,7 @@ CHECKS = [
     ("entities", "实体识别与校验断言", check_entities),
     ("sql-ast", "SQL 编译器前端断言", check_sql_ast),
     ("query-plan", "查询计划与索引断言", check_query_plan),
+    ("schema-rag", "RAG schema linking 召回断言", check_schema_rag),
 ]
 
 
