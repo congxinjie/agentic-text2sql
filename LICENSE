@@ -1,12 +1,21 @@
-Copyright (c) 2026 congxinjie. All rights reserved.
+MIT License
 
-本仓库（源代码、文档、评测脚本与产物）公开可见，但仅授权用于 COMPETITION.md 所述赛事的
-评审、查阅与复现验证，以及个人学习阅读。
+Copyright (c) 2026 congxinjie
 
-未经版权所有者书面许可，不得复制、修改、分发、再许可、商用，或用于任何竞赛/商业产品。
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-数据（数据集、数据库、评测输入与输出等）不适用本许可，其来源与使用边界以 DATA_NOTICE.md
-及比赛主办方要求为准。
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-如需开源复用（例如允许他人二次开发），请由版权所有者将本文件替换为 MIT / Apache-2.0
-等标准开源许可，并同步调整 DATA_NOTICE.md。
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

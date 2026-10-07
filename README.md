@@ -228,9 +228,8 @@ SQL 引用拦截与结果列掩码(见 [`docs/数据说明.md`](docs/数据说�
 
 ## 许可与数据
 
-- **代码/文档许可**：[`LICENSE`](LICENSE) —— 当前为“保留所有权利，仅授权比赛评审 / 学习阅读”。
-  如需开源复用，请替换为 MIT / Apache-2.0 等标准许可。
-- **数据使用**：[`DATA_NOTICE.md`](DATA_NOTICE.md) —— 数据集与评测产物版权归比赛主办方，
+- **代码/文档许可**：[MIT License](LICENSE) —— 允许使用、修改、分发（保留版权与许可声明）。
+- **数据使用**：[`DATA_NOTICE.md`](DATA_NOTICE.md) —— **数据不适用 MIT**，版权归比赛主办方，
   未经许可不得再分发、商用或用于训练模型；Release 附件公开仅为方便评审与复现。
 - **数据获取**：`bash scripts/fetch_dataset.sh`（公开仓库走匿名直链，无需 gh / token；
   私有仓库自动回退到 `gh release download` 或 `GH_TOKEN`）。
