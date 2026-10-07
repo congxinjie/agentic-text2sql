@@ -62,13 +62,25 @@
 | `Agentic智能问数在客户营销场景的应用数据集/` | 只读数据源（小文件入库，大表见下） |
 | `COMPETITION.md` · `AGENTS.md` | 参赛任务书（权威来源）· AI 工程会话规范 |
 
+## 环境依赖
+
+| 依赖 | 要求 | 说明 |
+|---|---|---|
+| Python | **≥ 3.10**（推荐 3.11 / 3.12） | 引擎用了 PEP 604 注解；低于 3.10 会被版本守卫明确拦下（实测 3.9 退出码非 0） |
+| 第三方包 | **无**（引擎 + 本地演示层） | 纯标准库；CI 的 `deps` 项机器证明 |
+| 数据 | `bash scripts/fetch_dataset.sh --db-only` | 从公开 Release 匿名直链拉 `enterprise.db`（约 88MB）+ sha256 / 8 表 831447 行 / 7 索引校验 |
+| 可选：Streamlit | `pip install -r text2sql_demo/requirements.txt` | 仅备选 UI 入口，非必需 |
+| 可选：LLM 密钥 | `text2sql_demo/.env.local` 的 `LLM_API_KEY` | 完整问答需要；无密钥可用 `--offline` 起界面冒烟 |
+
+> Windows 终端中文乱码时加 `PYTHONIOENCODING=utf-8`；macOS 自带 `python3` 可能是 3.9，请用 `python3.11` 或更高。
+
 ## 跑起来
 
 环境与部署、双入口启动、配置项（模型 / 温度 / 超时 / 重试 / `sql_hints`）、
 `QueryAgent` 官方接入口、评测复现命令与 FAQ —— **见 [`text2sql_demo/README.md`](text2sql_demo/README.md)**
 （不在这里重复一份，免得两处不同步）。
 
-要点：演示模式**无需外部账号**；真实调用需本地 `.env.local` 里的 DeepSeek API 密钥（**不入库**）。
+要点：界面演示可用 `--offline` 无密钥启动；完整问答需本地 `.env.local` 里的 DeepSeek API 密钥（**不入库**）。
 
 ## 如何启动演示（M8 本地演示层）
 
@@ -85,6 +97,7 @@ python demo/server.py --db "Agentic智能问数在客户营销场景的应用数
 # 无密钥起界面(离线冒烟): 只提供界面与 /api/health, 提问立即返回明确错误, 不发起网络调用
 python demo/server.py --db customer_marketing_db/marketing.db --offline
 ```
+
 
 浏览器打开 `http://127.0.0.1:8000`，一次问答即可看到：结构化计划 / SQL / 结果表格 /
 口径说明与默认假设 / 失败自修复过程。接口与演示细节见 [`docs/演示脚本.md`](docs/演示脚本.md)。

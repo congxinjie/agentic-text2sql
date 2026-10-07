@@ -11,7 +11,7 @@
 3. demo/server.py 与 demo/index.html 不含企业库域词(口径只在 enterprise_biz.json 注入)
 4. demo/enterprise_biz.json 与 benchmark/run_eval.py 的 ENTERPRISE_BIZ/SQL_HINTS/CALIBER_ASSERTIONS 原样一致
 5. judge 函数体与 HEAD 逐字符一致(git 可用时)
-6. 起本地服务后: /api/health 正常, 首页 HTML 含 6 个展示要素关键词
+6. 起本地服务后: /api/health 正常, 首页 HTML 含 7 个展示要素关键词
 """
 import ast
 import importlib.util
@@ -97,7 +97,7 @@ def extract_run_eval_biz():
         if isinstance(node, ast.Assign):
             for t in node.targets:
                 if isinstance(t, ast.Name) and t.id in {
-                        "ENTERPRISE_BIZ", "SQL_HINTS", "CALIBER_ASSERTIONS", "SENSITIVE_COLUMNS"}:
+                        "ENTERPRISE_BIZ", "SQL_HINTS", "CALIBER_ASSERTIONS", "SENSITIVE_COLUMNS", "ENTITIES"}:
                     vals[t.id] = ast.literal_eval(node.value)
     return vals
 
@@ -149,8 +149,9 @@ def main():
     same = (biz.get("biz_context") == src["ENTERPRISE_BIZ"]
             and biz.get("sql_hints") == src["SQL_HINTS"]
             and biz.get("caliber_assertions") == src["CALIBER_ASSERTIONS"]
-            and biz.get("sensitive_columns") == src["SENSITIVE_COLUMNS"])
-    check("口径同源: enterprise_biz.json == run_eval.py 四常量", same,
+            and biz.get("sensitive_columns") == src["SENSITIVE_COLUMNS"]
+            and biz.get("entities") == src["ENTITIES"])
+    check("口径同源: enterprise_biz.json == run_eval.py 五常量", same,
           "" if same else "JSON 与 run_eval.py 不一致")
 
     # 3. 引擎与演示层域词 grep
@@ -202,9 +203,9 @@ def main():
             check("本地服务冒烟: /api/health 返回 ok", ok_health)
             if ok_health:
                 _, html = fetch(base + "/")
-                keywords = ["计划", "SQL", "结果", "口径", "假设", "修复"]
+                keywords = ["计划", "SQL", "结果", "口径", "假设", "修复", "实体"]
                 missing = [k for k in keywords if k not in html]
-                check("首页 HTML 含 6 个展示要素关键词", not missing,
+                check("首页 HTML 含 7 个展示要素关键词", not missing,
                       "" if not missing else f"缺少: {missing}")
         finally:
             proc.terminate()
