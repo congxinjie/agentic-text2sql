@@ -39,6 +39,7 @@ import re
 import sqlite3
 import sql_ast
 import sql_plan
+import db_adapter
 import schema_rag
 import sys
 import time
@@ -68,6 +69,7 @@ SENSITIVE_MASK = "***"   # 受限字段在样例/结果中的占位符
 INTENT_ENUM = ("查询", "筛选", "排名", "对比", "趋势", "明细", "分析")
 MAX_SUB_QUESTIONS = 3   # 任务分解最多子问题数
 HERE = Path(__file__).resolve().parent
+_DB_LAYER = db_adapter  # 适配层模块别名(构造参数 db_adapter 会遮蔽模块名)
 
 # ================= 日志(纯标准库, 轮转文件) =================
 # M9: 引擎与演示层各接一个轮转文件日志, 记录各阶段开始/结束/耗时/异常/重试。
@@ -635,7 +637,7 @@ class QueryAgent:
                  sensitive_columns: list | None = None, on_stage=None,
                  entities: dict | None = None,
                  retrieve_mode: str = "full", rag_top_k: int = 6,
-                 decompose_mode: str = "off"):
+                 decompose_mode: str = "off", db_adapter=None):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
@@ -664,8 +666,10 @@ class QueryAgent:
         # 签名 on_stage(stage_title: str, status: str, detail: str): 每个阶段开始(status=RUNNING)
         # 与阶段结束(status=OK/WARN/FAIL/SKIP)各回调一次。纯旁路, 不参与任何判定逻辑。
         self.on_stage = on_stage
-        self.meta = get_table_meta(db_path)
-        self.schema = build_schema(db_path, self.sample_rows, self.sensitive_columns)
+        # 数据库适配层: 默认 SQLite(委托既有实现, 行为不变); 其它库注入自定义 adapter
+        self.adapter = db_adapter if db_adapter is not None else _DB_LAYER.SqliteAdapter(db_path)
+        self.meta = self.adapter.table_meta()
+        self.schema = self.adapter.schema_text(self.sample_rows, self.sensitive_columns)
         # RAG schema linking: full(默认, 注入全库 schema) / rag(按问题召回 top-k 表)
         self.retrieve_mode = str(retrieve_mode or "full").strip().lower()
         self.rag_top_k = max(1, int(rag_top_k))
@@ -1298,10 +1302,10 @@ class QueryAgent:
     # ---- 7 执行 ----
     def _execute(self, sql: str):
         self._begin_stage("执行")
-        headers, rows, truncated = run_query(self.db_path, sql)
+        headers, rows, truncated = self.adapter.run_query(sql, MAX_ROWS)
         headers, rows = self._mask_sensitive_cells(headers, rows)
         try:
-            self._query_plan = sql_plan.analyze(self.db_path, sql)
+            self._query_plan = self.adapter.analyze_plan(sql)
         except Exception:
             self._query_plan = {}
         # M9: 只记 SQL 长度/结果行数/列数, 绝不记 SQL 正文与数据行内容

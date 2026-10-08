@@ -11,7 +11,7 @@
 
 退出码: 全部通过 = 0; 任一 FAIL = 1。
 
-14 项检查与 M11 工作流步骤一一对应:
+15 项检查与 M11 工作流步骤一一对应:
     1 syntax       语法编译            所有 *.py 逐个 compile()
     2 deps         导入与无第三方包断言  加载引擎与演示层后 sys.modules 只多出标准库
     3 decouple     引擎解耦断言        引擎/演示层不出现券商域词(词表 + enterprise_biz.json 抽取)
@@ -26,6 +26,7 @@
     12 schema-rag   RAG schema linking 召回断言  BM25+中文 bigram: 承载表召回/表名直投/top-k/无信号负对照 + 中文分词
     13 decompose    任务分解(agentic 多步)断言  桩 LLM: 2 子问题各自执行 + 合成; 子问题失败回退单轮(负对照)
     14 ui           交互层断言           图表 SVG(含单列负对照)/CSV 导出 + 前端钩子 + Streamlit 图表/下载
+    15 db-adapter   数据库适配层断言    默认 SQLite 委托原实现(meta/schema/执行一致); 注入自定义 adapter 生效; 非 SQLite 串明确拒绝(负对照)
 
 为什么这些能进 CI: 它们都不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网。
 评测(run_eval.py)与边界用例(run_edge_cases.py)刻意不在 CI 内 —— 见 README 的"CI / 自动校验"一节。
@@ -179,7 +180,7 @@ def check_syntax():
 
 # ---------------- 2. 导入与"无第三方包"断言 ----------------
 
-ALLOWED_EXTRA = {"text2sql", "sql_ast", "sql_plan", "schema_rag", "demo", "demo.server", "__main__"}
+ALLOWED_EXTRA = {"text2sql", "sql_ast", "sql_plan", "schema_rag", "db_adapter", "demo", "demo.server", "__main__"}
 
 
 def _module_allowed(name: str) -> bool:
@@ -995,6 +996,61 @@ def check_ui():
     return True, "图表 SVG/CSV 导出生成正确(含单列负对照); 前端/服务端/Streamlit 钩子齐备"
 
 
+def check_db_adapter():
+    """数据库适配层断言: 默认 SQLite 委托原实现; 注入自定义 adapter 生效; 非 SQLite 串明确拒绝。"""
+    mod = get_engine()
+    lay = mod.db_adapter
+    problems = []
+    with tempfile.TemporaryDirectory(prefix="ci_adapter_") as tmp:
+        db = Path(tmp) / "synth.db"
+        build_synth_db(db)
+        ag = mod.QueryAgent(str(db), "ci-stub-key", verbose=False, sample_rows=0)
+        if getattr(ag.adapter, "name", "") != "sqlite":
+            problems.append(f"默认 adapter 非 sqlite: {getattr(ag.adapter, chr(39)+chr(110)+chr(97)+chr(109)+chr(101)+chr(39), None)}")
+        if ag.meta != mod.get_table_meta(str(db)):
+            problems.append("默认 adapter table_meta 与既有实现不一致")
+        if ag.schema != mod.build_schema(str(db), 0):
+            problems.append("默认 adapter schema_text 与既有实现不一致")
+        h, r, _ = ag._execute("SELECT COUNT(*) AS c FROM customers")
+        if h != ["c"] or not r:
+            problems.append(f"默认 adapter 执行异常: {h} {r}")
+        class Fake:
+            name = "fake"
+            def table_meta(self):
+                return {"t": ["id", "v"]}
+            def schema_text(self, sample_rows=2, sensitive_columns=None, tables=None):
+                return "-- fake"
+            def run_query(self, sql, max_rows=100):
+                return (["id", "v"], [(1, "a"), (2, "b")], False)
+            def analyze_plan(self, sql):
+                return {"used_index": True}
+        fake = Fake()
+        ag2 = mod.QueryAgent(str(db), "ci-stub-key", verbose=False, db_adapter=fake)
+        if ag2.meta != {"t": ["id", "v"]}:
+            problems.append("注入 adapter 未用于 table_meta")
+        if ag2.schema != "-- fake":
+            problems.append("注入 adapter 未用于 schema_text")
+        _, r2, _ = ag2._execute("SELECT 1")
+        if list(r2) != [(1, "a"), (2, "b")]:
+            problems.append(f"注入 adapter 未用于 run_query: {r2}")
+        if ag2._query_plan != {"used_index": True}:
+            problems.append("注入 adapter 未用于 analyze_plan")
+        if lay.make_adapter(None, fake) is not fake:
+            problems.append("make_adapter 自定义分支未透传")
+        try:
+            lay.make_adapter("mysql://host/db")
+            problems.append("非 SQLite 连接串未被拒绝(负对照)")
+        except ValueError:
+            pass
+        if not isinstance(lay.make_adapter(str(db)), lay.SqliteAdapter):
+            problems.append("make_adapter 未返回 SqliteAdapter")
+    if problems:
+        for p in problems:
+            print(f"      {p}")
+        return False, f"数据库适配层断言失败 {len(problems)} 处"
+    return True, "默认 SQLite 委托原实现(meta/schema/执行一致); 注入 adapter 生效; 非 SQLite 串明确拒绝(负对照)"
+
+
 CHECKS = [
     ("syntax", "语法编译", check_syntax),
     ("deps", "导入与无第三方包断言", check_deps),
@@ -1010,6 +1066,7 @@ CHECKS = [
     ("schema-rag", "RAG schema linking 召回断言", check_schema_rag),
     ("decompose", "任务分解(agentic 多步)断言", check_decompose),
     ("ui", "交互层(图表/导出)断言", check_ui),
+    ("db-adapter", "数据库适配层断言", check_db_adapter),
 ]
 
 

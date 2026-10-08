@@ -59,7 +59,7 @@
 | `text2sql_demo/` | 原型系统：`app.py`（Streamlit UI）+ `text2sql.py`（CLI）双入口、`app_core.py` 引擎 |
 | `benchmark/` | 基准集（46 问，人工标注）+ runner + 重判 + 双跑平均；`runs/` 是真实运行产物 |
 | `customer_marketing_db/` | 虚构数据的演示小库：`create_db.py` / `analysis.py`（纯标准库） |
-| `docs/` | 技术报告 / 数据说明 / 算法说明 / 测试与案例 / 演示脚本 / 安全设计 / 评测口径 / 交付对账 / 环境记录 |
+| `docs/` | 技术报告 / 数据说明 / 算法说明 / 测试与案例 / 演示脚本 / 安全设计 / 评测口径 / 交付对账 / 环境记录 / 数据库适配方案 |
 | `Agentic智能问数在客户营销场景的应用数据集/` | 只读数据源（小文件入库，大表见下） |
 | `COMPETITION.md` · `AGENTS.md` | 参赛任务书（权威来源）· AI 工程会话规范 |
 
@@ -130,7 +130,7 @@ python3 ci_check.py        # 逐项打印 OK/FAIL；任一 FAIL 退出码非 0
 
 CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-latest` + 系统自带 `python3`，
 **不做任何第三方包安装**（零 pip、零 requirements）、**不调用真实 LLM**（一律桩）、工作流里无任何密钥，
-超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 14 项（`ci_check.py` 的检查项 id 一一对应）：
+超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 15 项（`ci_check.py` 的检查项 id 一一对应）：
 
 | # | 检查（`python3 ci_check.py --only <id>`） | 内容 |
 |---|---|---|
@@ -148,6 +148,7 @@ CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-la
 | 12 | `schema-rag` | RAG schema linking：BM25 + 中文 bigram 从合成表词表召回承载表、表名直投优先、top-k 上限、无幻觉表、结果确定、中文分词与"无信号问题不召回"负对照（不依赖 `enterprise.db`） |
 | 13 | `decompose` | 任务分解（agentic 多步）：桩 LLM 下把多部分问题拆成 2 个子问题、各自走完整链路并合成结论；子问题失败时回退单轮（负对照） |
 | 14 | `ui` | 交互层：服务端生成横向条形图 SVG 与 CSV（含转义/单列负对照）；`index.html` 图表/导出/多轮 context 钩子；Streamlit 图表 + 下载按钮 |
+| 15 | `db-adapter` | 数据库适配层：默认 SQLite 走 `SqliteAdapter`（meta/schema/执行与既有实现一致）；注入自定义 adapter 生效；非 SQLite 连接串明确要求注入 adapter（负对照） |
 
 **刻意不跑什么（边界写清楚）**：`benchmark/run_eval.py`（46 问全量评测）与 `benchmark/run_edge_cases.py`
 （E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，不入 git，
@@ -161,7 +162,7 @@ CI 刻意保持「零联网、无密钥、≤ 5 分钟」，不去下载 151 MB 
 **本地跑同一套检查**（Windows / Linux 同一条命令；脚本用自身文件位置解析仓库根，与 cwd、盘符、系统无关）：
 
 ```bash
-python3 ci_check.py                  # 14 项全跑，全绿退出码 0
+python3 ci_check.py                  # 15 项全跑，全绿退出码 0
 python3 ci_check.py --only judge     # 只跑某一项（与 CI 的单步完全一致）
 python3 ci_check.py --only deps,judge
 python3 ci_check.py --list           # 列出检查项 id

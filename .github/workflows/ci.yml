@@ -10,7 +10,7 @@
 #   2. **不联网调用 LLM** —— 端到端冒烟与 SSE 契约都用桩 LLM 驱动引擎(零 API 调用);
 #   3. 本文件与整个仓库**不出现任何密钥**(密钥只在本地 .env.local, 永不入库)。
 #
-# 十四步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
+# 十五步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
 name: CI
 
 on:
@@ -98,3 +98,7 @@ jobs:
       # 步骤 ⑭交互层断言(图表 SVG/CSV 导出 + 前端钩子)
       - name: ⑭ 交互层(图表/导出)断言
         run: python3 ci_check.py --only ui
+
+      # 步骤 ⑮数据库适配层断言(默认 SQLite 一致 + 注入 adapter + 非 SQLite 负对照)
+      - name: ⑮ 数据库适配层断言
+        run: python3 ci_check.py --only db-adapter
