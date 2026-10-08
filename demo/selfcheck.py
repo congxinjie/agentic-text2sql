@@ -11,7 +11,7 @@
 3. demo/server.py 与 demo/index.html 不含企业库域词(口径只在 enterprise_biz.json 注入)
 4. demo/enterprise_biz.json 与 benchmark/run_eval.py 的 ENTERPRISE_BIZ/SQL_HINTS/CALIBER_ASSERTIONS 原样一致
 5. judge 函数体与 HEAD 逐字符一致(git 可用时)
-6. 起本地服务后: /api/health 正常, 首页 HTML 含 7 个展示要素关键词
+6. 起本地服务后: /api/health 正常, 首页 HTML 含 9 个展示要素关键词
 """
 import ast
 import importlib.util
@@ -203,9 +203,9 @@ def main():
             check("本地服务冒烟: /api/health 返回 ok", ok_health)
             if ok_health:
                 _, html = fetch(base + "/")
-                keywords = ["计划", "SQL", "结果", "口径", "假设", "修复", "实体"]
+                keywords = ["计划", "SQL", "结果", "口径", "假设", "修复", "实体", "图表", "导出"]
                 missing = [k for k in keywords if k not in html]
-                check("首页 HTML 含 7 个展示要素关键词", not missing,
+                check("首页 HTML 含 9 个展示要素关键词", not missing,
                       "" if not missing else f"缺少: {missing}")
         finally:
             proc.terminate()

@@ -45,6 +45,12 @@
   .trace li.ok { border-left-color:var(--ok); background:#f6fdf8; }
   .trace li.warn { border-left-color:var(--warn); background:#fdf9f2; }
   .trace li.fail { border-left-color:var(--fail); background:#fdf6f6; }
+  .csv { display:inline-block; margin-top:8px; background:#eef1ff; color:var(--brand); border:1px solid #dbe2ff; border-radius:8px; padding:6px 12px; font-size:13px; text-decoration:none; }
+  .barrow { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:13px; }
+  .barlabel { width:140px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar { height:12px; background:var(--brand); border-radius:3px; min-width:2px; }
+  .barval { color:var(--ink); font-variant-numeric:tabular-nums; }
+  #chartWrap svg { margin-top:6px; }
   .hidden { display:none; }
   .empty { color:var(--sub); padding:8px 0; }
 </style>
@@ -88,8 +94,10 @@
     </details>
 
     <details id="resultBox">
-      <summary>③ 结果表格</summary>
+      <summary>③ 结果表格 / 图表 / 导出</summary>
       <div id="tableWrap"></div>
+      <div id="chartWrap"></div>
+      <div><a id="csvLink" class="csv" download="query_result.csv" href="#">导出 CSV</a></div>
     </details>
 
     <details id="caliberBox">
@@ -208,6 +216,9 @@ function render(data) {
   renderPlan(data.plan, data.caliber_assertions);
   $("sqlView").textContent = data.sql || "(无 SQL)";
   renderTable(data.headers, data.rows, data.truncated);
+  $("chartWrap").innerHTML = data.chart_svg || "";
+  $("csvLink").href = data.csv_url || "#";
+  lastContext = { question: data.question, sql: data.sql, explanation: data.explanation, headers: data.headers, rows: (data.rows || []).slice(0, 3) };
   const assume = (data.explanation || "").includes("假设") ? data.explanation : "";
   $("caliberView").innerHTML =
     `<div><b>结论与口径说明</b>(来自引擎解释阶段):</div>` +
@@ -219,7 +230,7 @@ function render(data) {
 // M10: 阶段进度条(与引擎阶段一一对应) + 已用秒数计时器 + 流式不可用回落
 const STAGES = ["理解问题", "检索相关表和字段", "生成查询计划", "检查查询计划",
                 "生成SQL", "安全校验", "执行", "检查结果", "解释结果", "自动修复"];
-let es = null, timerId = null, settled = false;
+let es = null, timerId = null, settled = false, lastContext = null;
 
 function resetSteps() {
   $("steps").innerHTML = STAGES.map((s) => `<li data-stage="${esc(s)}">${esc(s)}</li>`).join("");
@@ -270,7 +281,7 @@ async function askOnce(question, note) {
     const resp = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, clarify: false })
+      body: JSON.stringify({ question, clarify: false, context: lastContext || null })
     });
     finish(await resp.json());
   } catch (e) {
@@ -283,7 +294,8 @@ async function askOnce(question, note) {
 // M10: EventSource 消费 /api/ask/stream —— 每个阶段到达即点亮, 结束事件里带完整结果
 function streamAsk(question) {
   settled = false;
-  const url = "/api/ask/stream?q=" + encodeURIComponent(question) + "&clarify=false";
+  const ctx_q = lastContext ? "&context=" + encodeURIComponent(JSON.stringify(lastContext)) : "";
+  const url = "/api/ask/stream?q=" + encodeURIComponent(question) + "&clarify=false" + ctx_q;
   let stream = null;
   try { stream = new EventSource(url); } catch (e) { askOnce(question); return; }
   es = stream;

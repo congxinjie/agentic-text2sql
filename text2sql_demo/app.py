@@ -66,7 +66,12 @@ submitted = st.button("提问", type="primary")
 if submitted and q and q.strip():
     with st.spinner("Agent 处理中(理解 → 检索 → 计划 → 检查 → SQL → 执行 → 解释)…"):
         pending = st.session_state.pending
-        result = app_core.answer(agent, q.strip(), pending)
+        ctx = None
+        for _m in reversed(st.session_state.messages):
+            if _m.get("role") == "assistant" and _m.get("kind") == "ok":
+                ctx = _m.get("payload") or None
+                break
+        result = app_core.answer(agent, q.strip(), pending, context=ctx)
         # 追问上下文管理
         if result["kind"] == "clarify":
             st.session_state.pending = result["payload"]
@@ -90,6 +95,13 @@ for m in st.session_state.messages:
             if p.get("headers") is not None and p.get("rows"):
                 st.dataframe([dict(zip(p["headers"], row)) for row in p["rows"]],
                              use_container_width=True, hide_index=True)
+                import pandas as pd
+                _df = pd.DataFrame(p["rows"], columns=p["headers"])
+                _num = [c for c in _df.columns[1:] if pd.api.types.is_numeric_dtype(_df[c])]
+                if _num:
+                    st.bar_chart(_df.set_index(_df.columns[0])[_num[0]])
+                st.download_button("导出 CSV", _df.to_csv(index=False).encode("utf-8-sig"),
+                                   file_name="query_result.csv", mime="text/csv")
                 if p.get("truncated"):
                     st.caption("结果超过 100 行, 仅展示前 100 行。")
             elif p.get("headers") is not None:

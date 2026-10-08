@@ -26,7 +26,8 @@ def build_agent() -> text2sql.QueryAgent:
                                sensitive_columns=SENSITIVE_COLUMNS, entities=ENTITIES)
 
 
-def answer(agent: text2sql.QueryAgent, question: str, pending: dict | None = None) -> dict:
+def answer(agent: text2sql.QueryAgent, question: str, pending: dict | None = None,
+           context: dict | None = None) -> dict:
     """处理一轮提问, 返回 UI 可直接渲染的结构。
 
     pending: 上一轮追问上下文 {"question": 累计问题, "rounds": 已追问轮数}
@@ -35,6 +36,12 @@ def answer(agent: text2sql.QueryAgent, question: str, pending: dict | None = Non
     if pending:
         q = f"{pending['question']}\n[补充信息] {question}"
         rounds = pending["rounds"] + 1
+    elif context and context.get("sql"):
+        q = ("【上一轮问题】" + str(context.get("question") or "") + "\n"
+             + "【上一轮 SQL】" + str(context.get("sql") or "") + "\n"
+             + "【上一轮结论】" + str(context.get("explanation") or "") + "\n"
+             + "【本轮】" + question)
+        rounds = 0
     else:
         q = question
         rounds = 0

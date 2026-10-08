@@ -11,7 +11,7 @@
 
 退出码: 全部通过 = 0; 任一 FAIL = 1。
 
-13 项检查与 M11 工作流步骤一一对应:
+14 项检查与 M11 工作流步骤一一对应:
     1 syntax       语法编译            所有 *.py 逐个 compile()
     2 deps         导入与无第三方包断言  加载引擎与演示层后 sys.modules 只多出标准库
     3 decouple     引擎解耦断言        引擎/演示层不出现券商域词(词表 + enterprise_biz.json 抽取)
@@ -25,6 +25,7 @@
     11 query-plan   查询计划与索引断言    EXPLAIN QUERY PLAN: 全表扫描/索引搜索/覆盖索引分类 + 引擎接入 + 负对照
     12 schema-rag   RAG schema linking 召回断言  BM25+中文 bigram: 承载表召回/表名直投/top-k/无信号负对照 + 中文分词
     13 decompose    任务分解(agentic 多步)断言  桩 LLM: 2 子问题各自执行 + 合成; 子问题失败回退单轮(负对照)
+    14 ui           交互层断言           图表 SVG(含单列负对照)/CSV 导出 + 前端钩子 + Streamlit 图表/下载
 
 为什么这些能进 CI: 它们都不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网。
 评测(run_eval.py)与边界用例(run_edge_cases.py)刻意不在 CI 内 —— 见 README 的"CI / 自动校验"一节。
@@ -963,6 +964,37 @@ def check_decompose():
     return True, "2 子问题各自执行 + 合成; 子问题失败回退单轮(负对照)"
 
 
+def check_ui():
+    """交互层断言: 图表 SVG/CSV 导出生成 + 前端钩子 + Streamlit 图表/下载。"""
+    srv = get_server_module()
+    problems = []
+    svg = srv.make_chart_svg(["等级", "客户数"], [["钻石", 5], ["白金", 3], ["金卡", 8]])
+    if not (svg.startswith("<svg") and "<rect" in svg and "钻石" in svg):
+        problems.append("make_chart_svg 未生成有效 SVG")
+    if srv.make_chart_svg(["a"], [[1]]) != "":
+        problems.append("单列不应绘图(负对照)")
+    csv_text = srv.make_csv(["a", "b"], [[1, "x,y"], [2, "q,z"]])
+    if (chr(34) + "x,y" + chr(34)) not in csv_text or (chr(34) + "q,z" + chr(34)) not in csv_text:
+        problems.append("make_csv 转义失败")
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    for kw in ("chartWrap", "csvLink", "chart_svg", "csv_url", "lastContext", "context="):
+        if kw not in html:
+            problems.append(f"index.html 缺少交互钩子: {kw}")
+    srv_src = SERVER_PY.read_text(encoding="utf-8")
+    for kw in ("make_chart_svg", "make_csv", "csv_url", "context"):
+        if kw not in srv_src:
+            problems.append(f"server.py 缺少: {kw}")
+    app_src = (ROOT / "text2sql_demo" / "app.py").read_text(encoding="utf-8")
+    for kw in ("bar_chart", "download_button"):
+        if kw not in app_src:
+            problems.append(f"app.py 缺少: {kw}")
+    if problems:
+        for pr in problems:
+            print(f"      {pr}")
+        return False, f"交互层断言失败 {len(problems)} 处"
+    return True, "图表 SVG/CSV 导出生成正确(含单列负对照); 前端/服务端/Streamlit 钩子齐备"
+
+
 CHECKS = [
     ("syntax", "语法编译", check_syntax),
     ("deps", "导入与无第三方包断言", check_deps),
@@ -977,6 +1009,7 @@ CHECKS = [
     ("query-plan", "查询计划与索引断言", check_query_plan),
     ("schema-rag", "RAG schema linking 召回断言", check_schema_rag),
     ("decompose", "任务分解(agentic 多步)断言", check_decompose),
+    ("ui", "交互层(图表/导出)断言", check_ui),
 ]
 
 

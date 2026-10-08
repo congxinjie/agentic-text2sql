@@ -100,8 +100,8 @@ python demo/server.py --db customer_marketing_db/marketing.db --offline
 ```
 
 
-浏览器打开 `http://127.0.0.1:8000`，一次问答即可看到：结构化计划 / SQL / 结果表格 /
-口径说明与默认假设 / 失败自修复过程。接口与演示细节见 [`docs/演示脚本.md`](docs/演示脚本.md)。
+浏览器打开 `http://127.0.0.1:8000`，一次问答即可看到：结构化计划 / SQL / 结果表格 + 图表 /
+CSV 导出 / 口径说明与默认假设 / 失败自修复过程；下一次提问会自动携带上一轮结论(多轮下钻)。接口与演示细节见 [`docs/演示脚本.md`](docs/演示脚本.md)。
 
 **等待期反馈（M10）**：前端用浏览器原生 `EventSource` 消费流式接口
 `GET /api/ask/stream?q=…&clarify=false`（纯标准库 SSE），引擎每进入/结束一个阶段就点亮一格进度条，
@@ -130,7 +130,7 @@ python3 ci_check.py        # 逐项打印 OK/FAIL；任一 FAIL 退出码非 0
 
 CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-latest` + 系统自带 `python3`，
 **不做任何第三方包安装**（零 pip、零 requirements）、**不调用真实 LLM**（一律桩）、工作流里无任何密钥，
-超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 13 项（`ci_check.py` 的检查项 id 一一对应）：
+超时 ≤ 5 分钟，触发 `push` / `pull_request` 到 `main`。它跑的就是下面这 14 项（`ci_check.py` 的检查项 id 一一对应）：
 
 | # | 检查（`python3 ci_check.py --only <id>`） | 内容 |
 |---|---|---|
@@ -147,6 +147,7 @@ CI 定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：`ubuntu-la
 | 11 | `query-plan` | `EXPLAIN QUERY PLAN`：索引发现、主键 SEARCH、全表 SCAN、未索引列 SCAN（负对照）、覆盖索引 SCAN 分类正确，并断言引擎已接入查询计划 |
 | 12 | `schema-rag` | RAG schema linking：BM25 + 中文 bigram 从合成表词表召回承载表、表名直投优先、top-k 上限、无幻觉表、结果确定、中文分词与"无信号问题不召回"负对照（不依赖 `enterprise.db`） |
 | 13 | `decompose` | 任务分解（agentic 多步）：桩 LLM 下把多部分问题拆成 2 个子问题、各自走完整链路并合成结论；子问题失败时回退单轮（负对照） |
+| 14 | `ui` | 交互层：服务端生成横向条形图 SVG 与 CSV（含转义/单列负对照）；`index.html` 图表/导出/多轮 context 钩子；Streamlit 图表 + 下载按钮 |
 
 **刻意不跑什么（边界写清楚）**：`benchmark/run_eval.py`（46 问全量评测）与 `benchmark/run_edge_cases.py`
 （E1–E9 边界用例）**不在 CI 内**，因为它们需要 ① `enterprise.db`（约 88 MB，不入 git，
@@ -160,7 +161,7 @@ CI 刻意保持「零联网、无密钥、≤ 5 分钟」，不去下载 151 MB 
 **本地跑同一套检查**（Windows / Linux 同一条命令；脚本用自身文件位置解析仓库根，与 cwd、盘符、系统无关）：
 
 ```bash
-python3 ci_check.py                  # 13 项全跑，全绿退出码 0
+python3 ci_check.py                  # 14 项全跑，全绿退出码 0
 python3 ci_check.py --only judge     # 只跑某一项（与 CI 的单步完全一致）
 python3 ci_check.py --only deps,judge
 python3 ci_check.py --list           # 列出检查项 id

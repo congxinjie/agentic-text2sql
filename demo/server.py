@@ -34,7 +34,7 @@ import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -116,13 +116,75 @@ def matched_assertions(question: str, plan: dict | None, rules: list) -> list:
     return out
 
 
-def run_ask(agent: QueryAgent, question: str, clarify: bool, on_stage=None) -> dict:
+def _esc(s):
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace(chr(34), "&quot;"))
+
+
+def make_csv(headers, rows):
+    def cell(v):
+        s = "" if v is None else str(v)
+        if any(ch in s for ch in (",", chr(34), "\n", "\r")):
+            s = chr(34) + s.replace(chr(34), chr(34) * 2) + chr(34)
+        return s
+    lines = [",".join(cell(h) for h in headers)]
+    for r in rows:
+        lines.append(",".join(cell(v) for v in r))
+    return "\r\n".join(lines)
+
+
+def make_chart_svg(headers, rows, max_rows=20):
+    try:
+        if not headers or len(headers) < 2 or not rows:
+            return ""
+        def num(v):
+            try:
+                return float(str(v).replace(",", ""))
+            except (TypeError, ValueError):
+                return None
+        idx = None
+        for j in range(1, len(headers)):
+            if any(num(r[j]) is not None for r in rows):
+                idx = j
+                break
+        if idx is None:
+            return ""
+        data = []
+        for r in rows[:max_rows]:
+            v = num(r[idx])
+            if v is not None:
+                data.append((str(r[0]), v))
+        if len(data) < 2:
+            return ""
+        mx = max(abs(v) for _, v in data) or 1.0
+        lh = 20
+        H = 8 + lh * len(data)
+        parts = [f"<svg viewBox=\"0 0 540 {H}\" width=\"100%\" role=\"img\">"]
+        for i, (label, v) in enumerate(data):
+            y = 4 + i * lh
+            w = max(2.0, 300.0 * abs(v) / mx)
+            lab = label if len(label) <= 10 else label[:10] + "…"
+            parts.append(f"<text x=\"0\" y=\"{y + 14}\" font-size=\"11\" fill=\"#6b7280\">{_esc(lab)}</text>")
+            parts.append(f"<rect x=\"120\" y=\"{y + 3}\" width=\"{w:.1f}\" height=\"13\" rx=\"2\" fill=\"#2f54eb\" opacity=\"0.85\"/>")
+            parts.append(f"<text x=\"{120 + w + 6:.1f}\" y=\"{y + 14}\" font-size=\"11\" fill=\"#1f2430\">{v:,.2f}</text>")
+        parts.append("</svg>")
+        return "".join(parts)
+    except Exception:
+        return ""
+
+
+def run_ask(agent: QueryAgent, question: str, clarify: bool, on_stage=None, context=None) -> dict:
     t0 = time.time()
+    orig_question = question
+    if context and isinstance(context, dict) and context.get("question"):
+        question = ("【上一轮问题】" + str(context.get("question")) + "\n"
+                    + "【上一轮 SQL】" + str(context.get("sql") or "") + "\n"
+                    + "【上一轮结论】" + str(context.get("explanation") or "") + "\n"
+                    + "【本轮】" + question)
     ans = agent.run(question, clarify=clarify, on_stage=on_stage)
     elapsed_s = round(time.time() - t0, 2)
     plan = getattr(agent, "last_plan", None)
     return {
-        "question": question,
+        "question": orig_question,
         "answerable": ans.answerable,
         "reject_reason": ans.reject_reason,
         "needs_clarification": ans.needs_clarification,
@@ -146,12 +208,14 @@ def run_ask(agent: QueryAgent, question: str, clarify: bool, on_stage=None) -> d
                   for e in ans.trace.entries],
         "elapsed_s": elapsed_s,
         "model": text2sql.MODEL,
+        "chart_svg": make_chart_svg(ans.headers, ans.rows),
+        "csv_url": ("data:text/csv;charset=utf-8," + quote("\ufeff" + make_csv(ans.headers, ans.rows))) if ans.headers else "",
         # M10: 让流式终止事件的 result 与 POST /api/ask 的响应逐字段一致(含 ok)
         "ok": True,
     }
 
 
-def run_ask_stream(agent: QueryAgent, question: str, clarify: bool, emit) -> dict:
+def run_ask_stream(agent: QueryAgent, question: str, clarify: bool, emit, context=None) -> dict:
     """M10: 跑一次问答, 边跑边把阶段进度交给 emit(纯标准库, 不加线程/队列)。
 
     - 每条阶段事件只含 type/seq/stage/status/ts/elapsed_s; **不带 detail**
@@ -168,7 +232,7 @@ def run_ask_stream(agent: QueryAgent, question: str, clarify: bool, emit) -> dic
         emit({"type": "stage", "seq": seq, "stage": stage, "status": status,
               "ts": round(time.time(), 3), "elapsed_s": round(time.time() - t0, 2)})
 
-    payload = run_ask(agent, question, clarify, on_stage=_on_stage)
+    payload = run_ask(agent, question, clarify, on_stage=_on_stage, context=context)
     done = {"type": "done", "seq": seq + 1, "ts": round(time.time(), 3), "result": payload}
     emit(done)
     return done
@@ -193,10 +257,10 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _ask(self, question: str, clarify: bool) -> dict:
+    def _ask(self, question: str, clarify: bool, context=None) -> dict:
         with self.server.agent_lock:
             try:
-                payload = run_ask(self.server.agent, question, clarify)
+                payload = run_ask(self.server.agent, question, clarify, context=context)
                 payload["ok"] = True
                 # M9: 只记长度/行数/耗时/状态, 不记问题正文与结果数据
                 LOG.info("[演示问答] 问题长度=%d clarify=%s 耗时=%.2fs 可答=%s 结果行数=%d 有错误=%s",
@@ -233,12 +297,12 @@ class Handler(BaseHTTPRequestHandler):
     def _sse_send(self, ev: dict):
         self._sse_write_text("data: " + json.dumps(ev, ensure_ascii=False) + "\n\n")
 
-    def _ask_stream(self, question: str, clarify: bool):
+    def _ask_stream(self, question: str, clarify: bool, context=None):
         """流式问答: 每个阶段到达即推一条事件, 最后推终止事件(内含与 /api/ask 相同的完整结果)。"""
         self._sse_open()
         try:
             with self.server.agent_lock:
-                done = run_ask_stream(self.server.agent, question, clarify, self._sse_send)
+                done = run_ask_stream(self.server.agent, question, clarify, self._sse_send, context=context)
             payload = done["result"]
             # M9 红线: 只记长度/行数/耗时/状态, 不记问题正文与结果数据
             LOG.info("[演示流式问答] 问题长度=%d clarify=%s 耗时=%.2fs 阶段事件数=%d 可答=%s 结果行数=%d 有错误=%s",
@@ -277,9 +341,16 @@ class Handler(BaseHTTPRequestHandler):
             if not question:
                 return self._send_json({"ok": False, "error": "缺少问题参数 q"}, 400)
             clarify = (qs.get("clarify") or ["false"])[0].lower() == "true"
+            ctx_raw = (qs.get("context") or [""])[0]
+            context = None
+            if ctx_raw:
+                try:
+                    context = json.loads(ctx_raw)
+                except ValueError:
+                    context = None
             if parsed.path == "/api/ask/stream":
-                return self._ask_stream(question, clarify)
-            return self._send_json(self._ask(question, clarify))
+                return self._ask_stream(question, clarify, context)
+            return self._send_json(self._ask(question, clarify, context))
         return self._send_json({"ok": False, "error": "not found"}, 404)
 
     def do_POST(self):
@@ -295,9 +366,10 @@ class Handler(BaseHTTPRequestHandler):
             if not question:
                 return self._send_json({"ok": False, "error": "缺少 question 字段"}, 400)
             clarify = bool(data.get("clarify", False))
+            context = data.get("context") if isinstance(data.get("context"), dict) else None
         except (ValueError, UnicodeDecodeError) as e:
             return self._send_json({"ok": False, "error": f"请求解析失败: {e}"}, 400)
-        return self._send_json(self._ask(question, clarify))
+        return self._send_json(self._ask(question, clarify, context))
 
     def log_message(self, fmt, *args):
         sys.stderr.write("[demo] " + fmt % args + "\n")
