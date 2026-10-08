@@ -66,6 +66,7 @@ EXPLAIN_MAX_ROWS = 20   # 喂给解释阶段的数据行数上限
 MAX_CLARIFY_ROUNDS = 3  # 交互模式下最多追问轮数
 SENSITIVE_MASK = "***"   # 受限字段在样例/结果中的占位符
 INTENT_ENUM = ("查询", "筛选", "排名", "对比", "趋势", "明细", "分析")
+MAX_SUB_QUESTIONS = 3   # 任务分解最多子问题数
 HERE = Path(__file__).resolve().parent
 
 # ================= 日志(纯标准库, 轮转文件) =================
@@ -533,6 +534,8 @@ class Answer:
     entities_covered: bool = False
     query_plan: dict = field(default_factory=dict)  # 执行计划分析(全表扫描/索引命中)
     rag_tables: list = field(default_factory=list)  # RAG 召回的 schema 表
+    decomposed: bool = False  # 是否走了任务分解(agentic 多步)
+    sub_answers: list = field(default_factory=list)  # 子问题各自的 SQL/结果
 
 
 # ================= 各阶段 Prompt =================
@@ -559,6 +562,20 @@ UNDERSTAND_SYS = """你是数据分析 Agent 的"问题理解器"。根据数据
 6. question_specificity 是自评: 问题有明确分析目标(指标/维度/筛选/时间至少有一项明确)给 "clear"; 问题含糊、没有明确统计对象(如"帮我分析一下""看看数据")给 "vague", 即使你猜测补了默认指标也必须给 "vague"。
 7. intent 从这 7 类里选一个: 查询/筛选/排名/对比/趋势/明细/分析。
 """
+
+DECOMPOSE_SYS = """你是数据分析 Agent 的"任务分解器"。判断用户问题是否需要拆成多个可独立用 SQL 回答的子问题。
+输出 JSON: {"needed": true, "sub_questions": ["子问题1", "子问题2"]}
+规则:
+1. 仅当问题包含多个独立的分析目标/对比口径/多步依赖时 needed=true, 给 2~3 个子问题;
+2. 每个子问题必须能独立执行 SQL, 合起来覆盖原问题;
+3. 简单单指标/单筛选问题 needed=false, sub_questions 给空数组;
+4. 不要臆造数据库没有的概念。"""
+
+SYNTH_SYS = """你是数据分析 Agent 的"结论合成器"。根据原问题与各子问题的查询结果, 用简洁中文给出最终结论:
+1. 只依据给定结果, 不编造数字;
+2. 如有默认假设或口径, 简要说明;
+3. 输出纯文本结论。"""
+
 
 RETRIEVE_SYS = """你是数据分析 Agent 的"检索器"。根据问题理解, 从给定表结构中挑出回答该问题需要用到(或大概率用到)的表与列, 输出 JSON:
 {
@@ -617,7 +634,8 @@ class QueryAgent:
                  caliber_assertions: list | None = None, sample_rows: int = 2,
                  sensitive_columns: list | None = None, on_stage=None,
                  entities: dict | None = None,
-                 retrieve_mode: str = "full", rag_top_k: int = 6):
+                 retrieve_mode: str = "full", rag_top_k: int = 6,
+                 decompose_mode: str = "off"):
         self.db_path = db_path
         self.api_key = api_key
         self.verbose = verbose
@@ -654,6 +672,8 @@ class QueryAgent:
         self._rag_tables = []
         self._short_schema_cache = {}
         self._rag_index = schema_rag.SchemaIndex(self.meta, self.biz_context) if self.retrieve_mode == "rag" else None
+        self.decompose_mode = str(decompose_mode or "off").strip().lower()
+        self.max_sub_questions = MAX_SUB_QUESTIONS
         self.trace = Trace()
         self._stage_idx = 0
         self._query_plan = {}
@@ -1406,6 +1426,90 @@ class QueryAgent:
             raise
 
     # ---- 主状态机 ----
+    # ---- 智能体: 复杂题多步分解(decompose_mode="auto"; 默认 off 不影响既有评测) ----
+    def _should_decompose(self, question: str) -> bool:
+        if self.decompose_mode != "auto":
+            return False
+        q = question or ""
+        marks = ("分别", "各自", "对比", "相比", "并且", "同时", "以及")
+        if any(m in q for m in marks) and len(q) >= 12:
+            return True
+        if q.count("?") + q.count("？") >= 2:
+            return True
+        return False
+
+    def _decompose(self, question: str) -> list:
+        user = f"{self._ctx()}\n\n用户问题: {question}\n\n请输出 JSON(只输出 JSON)。"
+        data = llm_json(DECOMPOSE_SYS, user, self.api_key)
+        if not bool(data.get("needed")):
+            return []
+        subs = [str(x).strip() for x in (data.get("sub_questions") or []) if str(x).strip()]
+        out = list(dict.fromkeys(subs))[: self.max_sub_questions]
+        return out if len(out) >= 2 else []
+
+    def _synth(self, question: str, subs: list) -> str:
+        blocks = []
+        for i, s in enumerate(subs, 1):
+            qtext = str(s.get("question") or "")
+            lines = [f"- 子问题{i}: {qtext}"]
+            err = str(s.get("error") or "")
+            if err:
+                lines.append("  失败: " + err)
+            else:
+                lines.append("  SQL: " + str(s.get("sql") or ""))
+                lines.append("  列: " + str(s.get("headers") or []))
+                lines.append("  行(前20): " + str((s.get("rows") or [])[:20]))
+            blocks.append("\n".join(lines))
+        user = (f"{self._ctx()}\n\n原问题: {question}\n\n子问题结果:\n"
+                + "\n".join(blocks) + "\n\n请给出最终结论。")
+        return llm_chat(SYNTH_SYS, user, self.api_key, max_tokens=1200).strip()
+
+    def _run_decomposed(self, question: str):
+        try:
+            subs_q = self._decompose(question)
+        except STAGE_ERRORS:
+            return None
+        if len(subs_q) < 2:
+            return None
+        self.trace = Trace()
+        self._stage_idx = 1
+        self._begin_stage("任务分解")
+        self._stage("任务分解", "OK", "子问题: " + " | ".join(subs_q))
+        child = QueryAgent(
+            self.db_path, self.api_key, verbose=False,
+            biz_context=self.biz_context, sql_hints=self.sql_hints,
+            caliber_assertions=self.caliber_assertions, sample_rows=self.sample_rows,
+            sensitive_columns=self.sensitive_columns, entities=self.entity_vocab,
+            retrieve_mode=self.retrieve_mode, rag_top_k=self.rag_top_k,
+            decompose_mode="off")
+        sub_ans = []
+        for sq in subs_q:
+            try:
+                a = child.run(sq, clarify=False)
+            except Exception as e:
+                a = Answer(question=sq, error="子问题执行异常: " + str(e))
+            sub_ans.append(a)
+        if any((a.error or not (a.sql or "").strip()) for a in sub_ans):
+            return None
+        last = sub_ans[-1]
+        ans = Answer(
+            question=question, answerable=True,
+            sql="\n\n".join(a.sql for a in sub_ans),
+            headers=list(last.headers), rows=list(last.rows), truncated=bool(last.truncated),
+            trace=self.trace, intent=last.intent,
+            entities=list(last.entities), entities_covered=bool(last.entities_covered),
+            query_plan=dict(last.query_plan or {}), rag_tables=list(last.rag_tables or []),
+            decomposed=True,
+            sub_answers=[{"question": a.question, "sql": a.sql, "headers": list(a.headers),
+                          "rows": list(a.rows[:20]), "error": a.error} for a in sub_ans])
+        try:
+            ans.explanation = self._synth(question, ans.sub_answers)
+        except STAGE_ERRORS:
+            ans.explanation = ""
+        if not (ans.explanation or "").strip():
+            ans.explanation = "（已按子问题分别执行, 结论合成未生成; 各子问题 SQL 与结果见 sub_answers）"
+        return ans
+
     def run(self, question: str, clarify: bool = True, on_stage=None) -> Answer:
         """M10: 支持本次 run 临时指定阶段回调(不传则沿用构造时的 on_stage)。
 
@@ -1415,6 +1519,10 @@ class QueryAgent:
         if on_stage is not None:
             self.on_stage = on_stage
         try:
+            if self.decompose_mode == "auto" and self._should_decompose(question):
+                _ans = self._run_decomposed(question)
+                if _ans is not None:
+                    return _ans
             return self._run(question, clarify)
         finally:
             self.on_stage = prev
@@ -1590,6 +1698,9 @@ def print_answer(ans: Answer):
     print(f"问题: {ans.question}")
     if getattr(ans, "intent", ""):
         print(f"[意图] {ans.intent}")
+    if getattr(ans, "decomposed", False):
+        _subs = " | ".join(str(s.get("question") or "") for s in (ans.sub_answers or []))
+        print("[任务分解] 子问题: " + _subs)
     if not ans.answerable:
         print(f"[拒绝回答] {ans.reject_reason}")
         print(ans.trace.render())

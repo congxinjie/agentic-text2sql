@@ -10,7 +10,7 @@
 #   2. **不联网调用 LLM** —— 端到端冒烟与 SSE 契约都用桩 LLM 驱动引擎(零 API 调用);
 #   3. 本文件与整个仓库**不出现任何密钥**(密钥只在本地 .env.local, 永不入库)。
 #
-# 十一步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
+# 十三步与 ci_check.py 的检查项一一对应, 每步单独成行便于定位失败。
 name: CI
 
 on:
@@ -90,3 +90,7 @@ jobs:
       # 步骤 ⑫RAG schema linking 召回断言(BM25+中文 bigram: 承载表/表名直投/top-k/负对照)
       - name: ⑫ RAG schema linking 召回断言
         run: python3 ci_check.py --only schema-rag
+
+      # 步骤 ⑬任务分解(agentic 多步)断言(2 子问题 + 合成 + 失败回退负对照)
+      - name: ⑬ 任务分解(agentic 多步)断言
+        run: python3 ci_check.py --only decompose

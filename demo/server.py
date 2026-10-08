@@ -136,6 +136,8 @@ def run_ask(agent: QueryAgent, question: str, clarify: bool, on_stage=None) -> d
         "intent": getattr(ans, "intent", ""),
         "entities": list(getattr(ans, "entities", []) or []),
         "query_plan": getattr(ans, "query_plan", {}) or {},
+        "decomposed": bool(getattr(ans, "decomposed", False)),
+        "sub_answers": list(getattr(ans, "sub_answers", []) or []),
         "entities_covered": bool(getattr(ans, "entities_covered", False)),
         "caliber_assertions": matched_assertions(
             question, plan, getattr(agent, "caliber_assertions", []) or []),

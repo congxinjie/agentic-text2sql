@@ -11,7 +11,7 @@
 
 退出码: 全部通过 = 0; 任一 FAIL = 1。
 
-12 项检查与 M11 工作流步骤一一对应:
+13 项检查与 M11 工作流步骤一一对应:
     1 syntax       语法编译            所有 *.py 逐个 compile()
     2 deps         导入与无第三方包断言  加载引擎与演示层后 sys.modules 只多出标准库
     3 decouple     引擎解耦断言        引擎/演示层不出现券商域词(词表 + enterprise_biz.json 抽取)
@@ -24,6 +24,7 @@
     10 sql-ast      SQL 编译器前端断言    词法+语句结构 AST: 金标全可解析; 错表/错列/WITH 后写语句负对照均被拦
     11 query-plan   查询计划与索引断言    EXPLAIN QUERY PLAN: 全表扫描/索引搜索/覆盖索引分类 + 引擎接入 + 负对照
     12 schema-rag   RAG schema linking 召回断言  BM25+中文 bigram: 承载表召回/表名直投/top-k/无信号负对照 + 中文分词
+    13 decompose    任务分解(agentic 多步)断言  桩 LLM: 2 子问题各自执行 + 合成; 子问题失败回退单轮(负对照)
 
 为什么这些能进 CI: 它们都不需要 enterprise.db(大表不入库)、不需要 API 密钥、不需要联网。
 评测(run_eval.py)与边界用例(run_edge_cases.py)刻意不在 CI 内 —— 见 README 的"CI / 自动校验"一节。
@@ -897,6 +898,71 @@ def check_query_plan():
     return True, "索引发现/主键 SEARCH/全表 SCAN/未索引 SCAN(负对照)/覆盖索引 SCAN 分类正确; 引擎已接入"
 
 
+def check_decompose():
+    """任务分解(agentic 多步)断言: 桩 LLM 下 2 子问题各自执行 + 合成; 子问题失败则回退单轮。"""
+    mod = get_engine()
+    orig_json, orig_chat = mod.llm_json, mod.llm_chat
+    problems = []
+
+    def sj(system, user, api_key, max_tokens=2000):
+        if "任务分解器" in system:
+            return {"needed": True, "sub_questions": ["华东地区有多少客户?", "华南地区有多少客户?"]}
+        if "问题理解器" in system:
+            return {"answerable": True, "summary": "客户数", "metrics": ["客户数"], "dimensions": [], "filters": ["region"], "time_range": "", "missing": [], "question_specificity": "clear"}
+        if "检索器" in system:
+            return {"tables": [{"table": "customers", "columns": ["cust_id", "region"], "why": "计数"}]}
+        if "查询计划器" in system:
+            return {"summary": "计数", "tables": ["customers"], "filters": [{"field": "region", "op": "=", "value": "华东"}], "aggregations": [{"func": "COUNT", "field": "*", "alias": "客户数"}], "group_by": [], "order_by": [], "limit": None, "steps": ["计数"], "output_columns": [{"name": "客户数"}]}
+        raise AssertionError("unexpected json prompt")
+
+    Q = chr(39) + "华东" + chr(39)
+
+    def sc(system, user, api_key, max_tokens=1500):
+        if "结论合成器" in system:
+            return "合成结论"
+        if "解释器" in system:
+            return "子结论"
+        return "SELECT COUNT(*) AS 客户数 FROM customers WHERE region = " + Q
+
+    mod.llm_json, mod.llm_chat = sj, sc
+    try:
+        with tempfile.TemporaryDirectory(prefix="ci_decomp_") as tmp:
+            db = Path(tmp) / "synth.db"
+            build_synth_db(db)
+            ag = mod.QueryAgent(str(db), "ci-stub-key", verbose=False, sample_rows=0, decompose_mode="auto")
+            ans = ag.run("华东和华南地区分别有多少客户?", clarify=False)
+            if not ans.decomposed:
+                problems.append("未触发任务分解")
+            if len(ans.sub_answers) != 2:
+                problems.append(f"子问题数不符: {len(ans.sub_answers)}")
+            if not all(s.get("sql") for s in ans.sub_answers):
+                problems.append(f"子问题缺少 SQL: {ans.sub_answers}")
+            if not (ans.explanation or "").strip():
+                problems.append("合成结论为空")
+
+            def sj2(system, user, api_key, max_tokens=2000):
+                if "任务分解器" in system:
+                    return {"needed": True, "sub_questions": ["正常查询", "失败查询"]}
+                if "问题理解器" in system and "失败" in user:
+                    return {"answerable": False, "reason": "测试失败"}
+                return sj(system, user, api_key, max_tokens)
+
+            mod.llm_json = sj2
+            ag2 = mod.QueryAgent(str(db), "ci-stub-key", verbose=False, sample_rows=0, decompose_mode="auto")
+            ans2 = ag2.run("华东和华南地区分别有多少客户?", clarify=False)
+            if ans2.decomposed:
+                problems.append("子问题失败时应回退单轮, 但仍标记 decomposed")
+            if not (ans2.sql or "").strip():
+                problems.append("回退后未产出单轮 SQL")
+    finally:
+        mod.llm_json, mod.llm_chat = orig_json, orig_chat
+    if problems:
+        for p in problems:
+            print(f"      {p}")
+        return False, f"任务分解断言失败 {len(problems)} 处"
+    return True, "2 子问题各自执行 + 合成; 子问题失败回退单轮(负对照)"
+
+
 CHECKS = [
     ("syntax", "语法编译", check_syntax),
     ("deps", "导入与无第三方包断言", check_deps),
@@ -910,6 +976,7 @@ CHECKS = [
     ("sql-ast", "SQL 编译器前端断言", check_sql_ast),
     ("query-plan", "查询计划与索引断言", check_query_plan),
     ("schema-rag", "RAG schema linking 召回断言", check_schema_rag),
+    ("decompose", "任务分解(agentic 多步)断言", check_decompose),
 ]
 
 
