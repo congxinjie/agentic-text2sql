@@ -1,5 +1,7 @@
 # Agentic 智能问数 —— 客户营销场景的应用
 
+[![CI](https://github.com/congxinjie/agentic-text2sql/actions/workflows/ci.yml/badge.svg)](https://github.com/congxinjie/agentic-text2sql/actions/workflows/ci.yml)
+
 把"取数"从**写 SQL** 变成**说人话**：自然语言 → LLM 生成只读 SQL → 执行 → 分层展示结果。
 
 面向客户营销数据的自助问答系统。参赛成果物八项齐备，逐项对账见 [`docs/交付对账.md`](docs/交付对账.md)；
@@ -42,7 +44,7 @@
 |---|---|---|---|
 | 1 | 可运行的 AI 智能取数 Agent 原型系统 | [`text2sql_demo/text2sql.py`](text2sql_demo/text2sql.py)(CLI)、[`demo/server.py`](demo/server.py)(本地 Web,含 SSE 等待期反馈)、[`text2sql_demo/app.py`](text2sql_demo/app.py)(Streamlit 备选入口) | 三个入口都能跑;启动命令见「跑起来」与 [`text2sql_demo/README.md`](text2sql_demo/README.md) |
 | 2 | 源代码 | 仓库根(引擎 [`text2sql_demo/text2sql.py`](text2sql_demo/text2sql.py) 1420 行 9 阶段状态机 + [`benchmark/`](benchmark/) 评测 harness + [`demo/`](demo/) 演示层) | 关键模块中文注释;零第三方依赖(CI 机器证明) |
-| 3 | 运行说明 | [README.md](README.md)(本文件:「跑起来」「如何启动演示」「CI / 自动校验」)+ [`text2sql_demo/README.md`](text2sql_demo/README.md)(环境/部署/配置/评测复现/FAQ) | 演示层可 `--offline` 无密钥起界面冒烟;真实问答读本地 `.env.local`(不入库) |
+| 3 | 运行说明 | [README.md](README.md)(本文件:「评委快速通道」「跑起来」「如何启动演示」「CI / 自动校验」)+ [`text2sql_demo/README.md`](text2sql_demo/README.md)(环境/部署/配置/评测复现/FAQ) | 演示层可 `--offline` 无密钥起界面冒烟;真实问答读本地 `.env.local`(不入库);一键向导 [`bootstrap.py`](bootstrap.py) 自动检测/补全环境 |
 | 4 | 元数据组织方案 | [`docs/元数据组织方案.md`](docs/元数据组织方案.md) | 表/字段/指标/维度/口径字典的组织格式与注入方式 |
 | 5 | 工具调用方案 | [`docs/工具调用方案.md`](docs/工具调用方案.md) | 工具清单、输入输出契约、调用顺序与依赖、重试与兜底、域知识切分 |
 | 6 | 安全围栏设计说明 | [`docs/安全设计说明.md`](docs/安全设计说明.md) | §2 只读三保险;§3「命题四类合法性 ↔ 代码行号」;§7 受限字段列级屏蔽 |
@@ -56,6 +58,7 @@
 ## 目录
 | 路径 | 内容 |
 |---|---|
+| `bootstrap.py` (+ `.command` / `.cmd` / `.sh`) | 评委一键环境向导：检测/补全环境 → 数据校验 → 15 项工程自证 → 密钥引导 → 起服务开页面 |
 | `text2sql_demo/` | 原型系统：`app.py`（Streamlit UI）+ `text2sql.py`（CLI）双入口、`app_core.py` 引擎 |
 | `benchmark/` | 基准集（46 问，人工标注）+ runner + 重判 + 双跑平均；`runs/` 是真实运行产物 |
 | `customer_marketing_db/` | 虚构数据的演示小库：`create_db.py` / `analysis.py`（纯标准库） |
@@ -63,13 +66,30 @@
 | `Agentic智能问数在客户营销场景的应用数据集/` | 只读数据源（小文件入库，大表见下） |
 | `COMPETITION.md` · `AGENTS.md` | 参赛任务书（权威来源）· AI 工程会话规范 |
 
+## 评委快速通道（一键运行）
+
+不想逐个装环境、逐个敲命令？clone 后运行一个文件即可：
+
+```bash
+python3 bootstrap.py          # 或双击 bootstrap.command(macOS) / bootstrap.cmd(Windows)
+```
+
+向导会自动完成六步：**检测并补全环境 → 拉取并校验数据 → 跑 15 项工程自证 → 引导填入 API Key →
+启动本地服务 → 打开演示页面**。环境齐备时约 30 秒；首次含 88MB 数据下载约 3–8 分钟。
+
+- 纯标准库、全程只读、不改动引擎；密钥只写入 `text2sql_demo/.env.local`（已 gitignore），向导不打印不回显。
+- 旧解释器也能启动它：它会自己找到 Python 3.10+；找不到时给出分平台安装命令（brew / winget / apt），经你同意后才尝试自动安装。
+- 主库不可用时（离线 / 下载失败）会自动回退到本地生成的演示小库 `marketing.db`，界面照样能演示。
+- 只想验收工程质量、不启动服务：`python3 bootstrap.py --no-serve --no-key`（约 30 秒，零联网、零密钥）。
+- 常用参数：`--yes`(全自动) / `--no-download`(跳过 88MB 主库) / `--no-key`(离线界面) / `--no-smoke`(省 token) / `--no-browser` / `--port N`。
+
 ## 环境依赖
 
 | 依赖 | 要求 | 说明 |
 |---|---|---|
-| Python | **≥ 3.10**（推荐 3.11 / 3.12） | 引擎用了 PEP 604 注解；低于 3.10 会被版本守卫明确拦下（实测 3.9 退出码非 0） |
+| Python | **≥ 3.10**（推荐 3.11 / 3.12） | 引擎用了 PEP 604 注解；低于 3.10 会被版本守卫明确拦下（实测 3.9 退出码非 0）。`bootstrap.py` 可在旧解释器上启动并代为挑选 3.10+ |
 | 第三方包 | **无**（引擎 + 本地演示层） | 纯标准库；CI 的 `deps` 项机器证明 |
-| 数据 | `bash scripts/fetch_dataset.sh --db-only` | 从公开 Release 匿名直链拉 `enterprise.db`（约 88MB）+ sha256 / 8 表 831447 行 / 7 索引校验 |
+| 数据 | `bash scripts/fetch_dataset.sh --db-only`（或 `python3 bootstrap.py`） | 从公开 Release 匿名直链拉 `enterprise.db`（约 88MB）+ sha256 / 8 表 831447 行 / 7 索引校验；向导版是纯 Python 实现，Windows 无需 bash、也不依赖 `sha256sum` |
 | 可选：Streamlit | `pip install -r text2sql_demo/requirements.txt` | 仅备选 UI 入口，非必需 |
 | 可选：LLM 密钥 | `text2sql_demo/.env.local` 的 `LLM_API_KEY` | 完整问答需要；无密钥可用 `--offline` 起界面冒烟 |
 
