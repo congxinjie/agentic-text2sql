@@ -3,6 +3,8 @@
 
 最小接口: table_meta / schema_text / run_query; 可选: explain_plan / list_indexes / analyze_plan。
 安全约定: 适配器必须提供只读连接; 引擎不执行任何写操作。零第三方依赖(非 SQLite 由使用方注入驱动)。
+修复约定: run_query 失败时请抛 ValueError —— 引擎的失败自修复判定是 (sqlite3.Error, ValueError),
+          驱动自己的 OperationalError 不在其中, 会静默跳过"自动改一遍再试"。
 """
 
 

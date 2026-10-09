@@ -197,6 +197,9 @@ python3 demo/server.py --db "mysql://readonly@host/sales" \
 - 类若有 1 个必填位置参数，自动接收 `--db` 的**原样字符串**（可以是 DSN）；无参构造也可以（自己从环境变量读连接）。
 - 给了 `--adapter-module` 后 `--db` **不再当文件路径校验**，DSN 可直接传；`/api/health` 会回显生效的 adapter。
 - 只读由适配器保证（请用只读账号/只读连接）；引擎侧 `validate_sql` + AST 真实表列校验仍然生效。
+- **想让「失败自修复」对非 SQLite 库也生效，`run_query` 失败时必须抛 `ValueError`**：引擎的修复判定是
+  `except (sqlite3.Error, ValueError)`，MySQL/PG 驱动自己的 `OperationalError` 不在其中，会被静默跳过
+  （实测对照与包装写法见 [`docs/数据库适配方案.md`](docs/数据库适配方案.md) 第 3 节）。
 - 完整示例（MySQL `EXPLAIN` / PG / Hive，含可选方法）见 [`docs/数据库适配方案.md`](docs/数据库适配方案.md)；
   编程接入用 `QueryAgent(..., db_adapter=...)`，见 [`text2sql_demo/README.md`](text2sql_demo/README.md)。
 

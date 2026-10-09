@@ -19,6 +19,7 @@ import json
 import os
 import platform
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -164,6 +165,26 @@ def run(cmd, cwd=None, timeout=None, quiet=False):
         return 127, "未找到命令: {}".format(cmd[0])
     except subprocess.TimeoutExpired:
         return 124, "命令超时({}s): {}".format(timeout, " ".join(cmd))
+
+
+def install_termination_handler():
+    """让 SIGTERM 也走 Ctrl+C 那条清理路径。
+
+    默认情况下 SIGTERM 会立刻结束进程、连 finally 都不执行, 于是已经起来的演示服务会变成
+    孤儿进程继续占着端口(实测复现: IDE 的停止按钮 / kill / 强制关窗都会踩到)。
+    转成 KeyboardInterrupt 后, 就能复用 start_server 里既有的"先停子进程再退出"逻辑。
+    Windows 走 TerminateProcess 语义, 拿不到这个信号, 失败就静默跳过。
+    """
+    def _as_interrupt(signum, frame):
+        raise KeyboardInterrupt
+    for name in ("SIGTERM", "SIGBREAK"):
+        sig = getattr(signal, name, None)
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, _as_interrupt)
+        except (ValueError, OSError, RuntimeError):
+            pass
 
 
 # ============================ 1. Python 环境 ============================
@@ -386,7 +407,7 @@ def validate_main_db(path):
         conn.close()
 
 
-def download_file(url, dest, expected_sha):
+def download_file(url, dest, expected_sha, _retry=True):
     """带断点续传 + 进度显示 + sha256 校验的下载。返回 (ok, 消息)。"""
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = Path(str(dest) + ".part")
@@ -398,6 +419,14 @@ def download_file(url, dest, expected_sha):
     try:
         resp = urllib.request.urlopen(req, timeout=60)
     except urllib.error.HTTPError as e:
+        if e.code == 416 and have and _retry:
+            # 本地 .part 比远端附件还大(上次下载被截断/附件换版)时 GitHub 回 416。
+            # 这是本地残留的问题, 不是 Release 坏了 —— 丢掉残留整份重下, 并把话说明白。
+            part.unlink()
+            info("本地断点残留与远端不一致(HTTP 416), 已丢弃残留并重新整份下载 ...")
+            return download_file(url, dest, expected_sha, _retry=False)
+        if e.code == 416 and have:
+            return False, "断点残留反复与远端冲突(HTTP 416), 请手动删除该文件后重试: {}".format(part)
         if e.code == 404:
             return False, "附件不存在(HTTP 404), 可能 Release 尚未发布"
         return False, "HTTP {}: {}".format(e.code, e.reason)
@@ -407,15 +436,26 @@ def download_file(url, dest, expected_sha):
         return False, "{}: {}".format(type(e).__name__, e)
 
     status = getattr(resp, "status", 200)
-    if status == 206 and have:
+    # 以 Content-Range 的"总大小"为准, 而不是 have + Content-Length —— 后者在
+    # 残留比远端大(服务器只回 0 字节)时会算出与 have 相等的 total, 让完整性检查直接放行。
+    remote_total = None
+    content_range = resp.headers.get("Content-Range") or ""
+    if "/" in content_range:
+        try:
+            remote_total = int(content_range.rsplit("/", 1)[1])
+        except ValueError:
+            remote_total = None
+    if status == 206 and have and remote_total is not None and have < remote_total:
         mode = "ab"
         done = have
-        total = have + int(resp.headers.get("Content-Length") or 0)
+        total = remote_total
     else:
-        # 服务器不支持续传(或被要求整份重下): 从头来
+        # 不支持续传 / 残留已失效 / 服务器对远端大小闭口不谈: 从头来
+        if status == 206 and have and remote_total is not None and have > remote_total:
+            info("本地残留的 .part 比远端文件还大, 改为整份重新下载")
         mode = "wb"
         done = 0
-        total = int(resp.headers.get("Content-Length") or 0)
+        total = remote_total or int(resp.headers.get("Content-Length") or 0)
 
     info("下载 {} {} ...".format(DB_ASSET, DB_SIZE_HINT))
     start = time.time()
@@ -878,6 +918,7 @@ def main():
     global COLOR
     _setup_stdout()
     _enable_windows_ansi()
+    install_termination_handler()
     COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
     opts = parse_args(sys.argv[1:])
     auto = opts["auto"]
