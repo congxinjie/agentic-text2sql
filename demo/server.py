@@ -3,8 +3,8 @@
 """M8 本地演示服务(纯标准库 http.server)。
 
 启动:
-    python demo/server.py --db <库路径> [--biz-context demo/enterprise_biz.json] [--port 8000]
-                          [--sample-rows 2] [--log-level INFO] [--offline]
+    python3 demo/server.py --db <库路径> [--biz-context demo/enterprise_biz.json] [--port 8000]
+                           [--sample-rows 2] [--log-level INFO] [--offline]
 
 --offline: 离线演示模式 —— 没有 LLM_API_KEY 也能起服务(界面与 /api/health 可用),
            提问会立即返回"未配置密钥"的明确错误, 不发起任何真实网络调用。
@@ -12,6 +12,14 @@
 --sample-rows 控制每表拼进 schema 的样例数据行数: 默认 0(真实数据场景安全, 不发样例);
 显式 --sample-rows 2 可恢复历史评测口径(早期 demo 与基准集 runner 用此锁住 100% 数字)。
 /api/health 会回显实际生效值。
+
+--adapter-module 接入非 SQLite 库(MySQL / PostgreSQL / Hive ...):
+    python3 demo/server.py --db "mysql://readonly@host/sales" \
+                           --adapter-module my_adapter.py:MysqlAdapter
+    写法: <模块名或 .py 文件路径>:<类名>; 类会被实例化为 Cls(--db 的原样字符串),
+    也可实现无参构造(自己从环境变量读连接)。适配器需实现 table_meta / schema_text /
+    run_query 三个方法(见 docs/数据库适配方案.md 与 text2sql_demo/db_adapter.py 的 BaseAdapter)。
+    给了 --adapter-module 时不再把 --db 当文件路径校验, 所以可以传 DSN。
 
 约定:
 - 只绑 127.0.0.1, 不对外网开放。
@@ -27,6 +35,8 @@
   最后推一条 {"type":"done","result":{...}}, 其 result 与 /api/ask 的响应逐字段相同。
 """
 import argparse
+import importlib.util
+import inspect
 import json
 import os
 import sys
@@ -93,6 +103,63 @@ def load_biz_context_file(path: str | None):
             data.get("caliber_assertions") or [],
             data.get("sensitive_columns") or [],
             data.get("entities") or {})
+
+
+def load_adapter_module(spec: str, db_target):
+    """按 "<模块名或 .py 路径>:<类名>" 加载并实例化自定义数据库适配器(供 --adapter-module 用)。
+
+    刻意保持与引擎一致的最小契约: 适配器实现 table_meta / schema_text / run_query 三个方法即可,
+    驱动由使用方自己安装 —— 演示层与引擎都不引入任何第三方依赖。
+
+    实例化约定: 类若需要 1 个必填位置参数, 传 --db 的原样字符串(可以是 DSN);
+    若无必填参数, 直接 Cls()(适配器自己从环境变量读连接串)。
+    """
+    if ":" not in spec:
+        raise ValueError("--adapter-module 格式应为 <模块名或 .py 路径>:<类名>, "
+                         "例如 my_adapter.py:MysqlAdapter")
+    target, _, cls_name = spec.rpartition(":")
+    target, cls_name = target.strip(), cls_name.strip()
+    if not target or not cls_name:
+        raise ValueError("--adapter-module 格式应为 <模块名或 .py 路径>:<类名>, "
+                         "例如 my_adapter.py:MysqlAdapter")
+
+    path = Path(target).expanduser()
+    if path.suffix == ".py" or path.exists():
+        path = path if path.is_absolute() else (ROOT / path)
+        if not path.exists():
+            raise ValueError(f"适配器文件不存在: {target}")
+        mod_name = "text2sql_custom_adapter"
+        mspec = importlib.util.spec_from_file_location(mod_name, str(path))
+        if mspec is None or mspec.loader is None:
+            raise ValueError(f"无法作为 Python 模块加载: {path}")
+        module = importlib.util.module_from_spec(mspec)
+        sys.modules[mod_name] = module      # 让适配器内部的相对 import/自省可用
+        mspec.loader.exec_module(module)
+    else:
+        module = importlib.import_module(target)
+
+    cls = getattr(module, cls_name, None)
+    if cls is None:
+        raise ValueError(f"模块 {target} 里没有名为 {cls_name} 的类")
+
+    try:
+        required = sum(1 for p in inspect.signature(cls).parameters.values()
+                       if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+                       and p.default is p.empty)
+    except (TypeError, ValueError):
+        required = 1
+    if required >= 1:
+        if not db_target:
+            raise ValueError(f"适配器 {cls_name} 需要连接串, 请用 --db 传入")
+        adapter = cls(db_target)
+    else:
+        adapter = cls()
+
+    for method in ("table_meta", "schema_text", "run_query"):
+        if not callable(getattr(adapter, method, None)):
+            raise ValueError(f"适配器 {cls_name} 缺少必需方法 {method}()"
+                             f"(最小契约: table_meta / schema_text / run_query)")
+    return adapter
 
 
 def matched_assertions(question: str, plan: dict | None, rules: list) -> list:
@@ -379,7 +446,10 @@ class Handler(BaseHTTPRequestHandler):
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="M8 本地演示服务(纯标准库, 只绑 127.0.0.1, 只读库)")
-    ap.add_argument("--db", required=True, help="SQLite 库路径")
+    ap.add_argument("--db", default=None,
+                    help="SQLite 库路径; 配 --adapter-module 时为连接串(DSN), 此时不做文件校验")
+    ap.add_argument("--adapter-module", default=None, metavar="MOD:CLASS",
+                    help='接入非 SQLite 库: "<模块名或 .py 路径>:<类名>", 例如 my_adapter.py:MysqlAdapter')
     ap.add_argument("--biz-context", default=None,
                     help="业务口径 JSON 文件(如 demo/enterprise_biz.json), 不传走引擎默认语义")
     ap.add_argument("--port", type=int, default=8000)
@@ -392,14 +462,30 @@ def main(argv=None):
     args = ap.parse_args(argv)
     if args.sample_rows < 0:
         ap.error("--sample-rows 不能为负数(0 = 不发送样例数据)")
+    if not args.db and not args.adapter_module:
+        ap.error("必须提供 --db (SQLite 库路径), 或 --adapter-module (自定义适配器)")
     # M9: 按命令行级别重启演示层日志 handler
     text2sql.setup_logging(log_file=ROOT / "logs" / "demo_server.log",
                            level=args.log_level, name="demo_server")
 
-    db_path = resolve_path(args.db, ROOT)
-    if not db_path.exists():
-        ap.error(f"数据库不存在: {args.db}")
-    db_path = db_path.resolve()
+    # 数据源二选一: 默认 SQLite 文件; 给了 --adapter-module 则由自定义适配器接管(可以传 DSN)。
+    adapter = None
+    if args.adapter_module:
+        try:
+            adapter = load_adapter_module(args.adapter_module, args.db)
+        except Exception as e:
+            ap.error(f"--adapter-module 加载失败: {type(e).__name__}: {e}")
+        db_display = "{} (自定义 adapter: {})".format(args.db or "无 DSN", args.adapter_module)
+        agent_db = args.db or "_adapter_"
+        print(f"[适配器] 已加载 {args.adapter_module}, 数据访问交给它(引擎不做 SQLite 假设)",
+              flush=True)
+    else:
+        db_path = resolve_path(args.db, ROOT)
+        if not db_path.exists():
+            ap.error(f"数据库不存在: {args.db}")
+        db_path = db_path.resolve()
+        db_display = str(db_path)
+        agent_db = str(db_path)
 
     biz_file = None
     if args.biz_context:
@@ -419,34 +505,39 @@ def main(argv=None):
         text2sql.llm_chat = _offline_llm
         text2sql.llm_json = _offline_llm
         print("[离线演示] 未配置 LLM_API_KEY: 仅提供界面与 /api/health, 提问会明确报错。", flush=True)
-    agent = DemoQueryAgent(str(db_path), api_key, verbose=False,
+    agent = DemoQueryAgent(agent_db, api_key, verbose=False,
                            biz_context=biz_context,
                            sql_hints=sql_hints,
                            caliber_assertions=caliber_assertions,
                            sensitive_columns=sensitive_columns,
                            entities=entities,
-                           sample_rows=args.sample_rows)
+                           sample_rows=args.sample_rows,
+                           db_adapter=adapter)
 
     index_html = (HERE / "index.html").read_bytes()
 
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     server.agent = agent
     server.agent_lock = threading.Lock()
-    server.db_path = db_path
+    server.db_path = db_display
     server.biz_context_file = biz_file
     server.index_html = index_html
 
     print(f"智能问数演示服务已启动: http://127.0.0.1:{args.port}", flush=True)
-    print(f"库: {db_path} (只读, mode=ro + query_only)", flush=True)
+    if adapter is None:
+        print(f"库: {db_display} (只读, mode=ro + query_only)", flush=True)
+    else:
+        print(f"库: {db_display}", flush=True)
+        print("     只读由适配器保证 —— 请使用只读账号/只读连接(引擎侧安全校验仍生效)", flush=True)
     print(f"模型: {text2sql.MODEL}", flush=True)
     print(f"业务口径: {biz_file or '未注入(引擎默认语义)'}", flush=True)
     print(f"样例数据行数: {args.sample_rows}(0 = 不把样例数据发给外部 LLM)", flush=True)
     print(f"受限字段: {sensitive_columns or '无'}(样例值不外发/查询结果掩码)", flush=True)
     print(f"日志: {ROOT / 'logs' / 'demo_server.log'}(级别 {args.log_level})", flush=True)
     print("按 Ctrl+C 停止。", flush=True)
-    LOG.info("演示服务启动: 库=%s 端口=%d 模型=%s 样例数据行数=%d 业务口径=%s",
-             db_path.name, args.port, text2sql.MODEL, args.sample_rows,
-             biz_file or "未注入(引擎默认语义)")
+    LOG.info("演示服务启动: 库=%s 端口=%d 模型=%s 样例数据行数=%d 业务口径=%s 适配器=%s",
+             str(db_display)[:120], args.port, text2sql.MODEL, args.sample_rows,
+             biz_file or "未注入(引擎默认语义)", args.adapter_module or "sqlite(默认)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

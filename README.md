@@ -148,6 +148,65 @@ python3 benchmark/sse_same_source_check.py     # 流式终止事件与 POST 响�
 python3 benchmark/sse_stream_check.py          # 真实 LLM: 逐行读 SSE 打时刻 / 与 POST 字段一致 / 密钥 grep
 ```
 
+## 接入你自己的数据库
+
+引擎**不绑定任何特定库**：表名/列名是从你那个库**真实读出来**的（`sqlite_master` / `information_schema`），
+不是提示词里写死的；SQL 层还叠着真实表列校验与只读 AST 检查。按投入分三档：
+
+### 档位 1：任意 SQLite 库 —— 改一个参数，零配置
+
+```bash
+python3 demo/server.py --db /path/to/你的库.db --port 8000
+```
+
+实测：拿一个与银行/券商毫无关系的电商库（`categories` / `products` / `orders`），不做任何业务注入直接问
+"各分类的商品平均单价是多少?" —— 7.9s 返回正确结果（家居 67.0 / 数码 685.67 / 服饰 299.0）。
+代价是默认 `biz_context` 仍写着演示营销库的语义，提示词里带着与你无关的描述，`⑦ 识别实体` 区块为空。
+
+### 档位 2：把口径调准 —— 写一个 JSON（推荐）
+
+就是你接 `enterprise.db` 用的同一套机制，样例见 [`demo/enterprise_biz.json`](demo/enterprise_biz.json)：
+
+```bash
+python3 demo/server.py --db /path/to/你的库.db --biz-context /path/to/你的_biz.json --port 8000
+```
+
+| 字段 | 类型 | 作用 |
+|---|---|---|
+| `biz_context` | str | 各 LLM 阶段的业务口径说明：有哪些表、每列什么含义、口径约定 |
+| `sql_hints` | `{关键词: 示例 SQL}` | 生成 SQL 阶段按关键词触发 few-shot（每类 1 例） |
+| `caliber_assertions` | `[{id, when, must_contain, must_not_contain, desc}]` | 口径断言：命中 `when` 时要求 SQL 含/不含指定片段，不通过就打回重规划 |
+| `sensitive_columns` | `[列名]` | 受限字段：样例不外发 + SQL 引用拦截 + 结果列掩码（**陌生库必须自己声明，引擎不猜**） |
+| `entities` | `{实体名: {table, key, aliases}}` | 实体词表：不进提示词，用于「⑦ 识别实体」与五项程序化校验 |
+
+> 实测 A/B（同库同问题，只差这个 JSON）：`entities` 由 `[]` → 注入的实体数组，`entities_covered` 由
+> `false` → `true`，`caliber_assertions` 由 `[]` → 命中展示。机制在陌生库上同样生效。
+
+### 档位 3：MySQL / PostgreSQL / Hive —— 注入自定义 adapter
+
+引擎**零第三方依赖**是铁律，所以不内置任何数据库驱动：连接串会被明确拒绝，必须自己写适配器
+（3 个必需方法 + 3 个可选方法，约 30 行）：
+
+```bash
+# my_adapter.py 里定义 class MysqlAdapter, 实现 table_meta / schema_text / run_query
+python3 demo/server.py --db "mysql://readonly@host/sales" \
+                       --adapter-module my_adapter.py:MysqlAdapter --port 8000
+```
+
+- 写法 `<模块名或 .py 文件路径>:<类名>`（相对路径按仓库根解析）。
+- 类若有 1 个必填位置参数，自动接收 `--db` 的**原样字符串**（可以是 DSN）；无参构造也可以（自己从环境变量读连接）。
+- 给了 `--adapter-module` 后 `--db` **不再当文件路径校验**，DSN 可直接传；`/api/health` 会回显生效的 adapter。
+- 只读由适配器保证（请用只读账号/只读连接）；引擎侧 `validate_sql` + AST 真实表列校验仍然生效。
+- 完整示例（MySQL `EXPLAIN` / PG / Hive，含可选方法）见 [`docs/数据库适配方案.md`](docs/数据库适配方案.md)；
+  编程接入用 `QueryAgent(..., db_adapter=...)`，见 [`text2sql_demo/README.md`](text2sql_demo/README.md)。
+
+### 换库前必须知道的两件事
+
+1. **46/46、100% 这些数字只对本项目的库有效。** 换库后口径断言、few-shot、实体词表都是空的，
+   准确率没有任何保证 —— 请按 [`docs/评测口径定义.md`](docs/评测口径定义.md) 自建评测集后再评估。
+2. **数据合规要自己兜底。** `sensitive_columns` 不注入就等于没有列级屏蔽；样例数据默认
+   `--sample-rows 0`（不外发 LLM），但查询结果本身仍会出现在页面与 CSV 导出里。
+
 ## CI / 自动校验（M11）
 
 第三方 clone 本仓库后，**不需要 `enterprise.db`、不需要 API 密钥、也不需要联网**，就能一键自证工程质量：
