@@ -342,6 +342,10 @@ def parse_args(argv):
     ap.add_argument("--ids", help="逗号分隔题号, 如 C02,C07; 缺省=全量")
     ap.add_argument("--limit", type=int, default=None, help="只跑前 N 题; 缺省=不限")
     ap.add_argument("--no-report", action="store_true", help="全量运行也不覆盖 docs/评测报告-基线.md(稳定性多轮跑批用); 缺省=覆盖")
+    # M9 合规整改后锁口径: 引擎默认 sample_rows=0(不发样例数据); 评测 runner 显式 2 锁住既有
+    # 46 问双跑 100% 数字(金标基于 2 行样例生成, 改 0 会破口径)。真实场景请用引擎默认 0。
+    ap.add_argument("--sample-rows", type=int, default=2,
+                    help="每表样例数据行数(默认 2, 锁住既有 100% 口径; 真实场景用 0)")
     return ap.parse_args(argv)
 
 
@@ -364,6 +368,7 @@ def main():
     agent = QueryAgent(str(DB), api_key, verbose=False, biz_context=ENTERPRISE_BIZ,
                        sql_hints=SQL_HINTS, caliber_assertions=CALIBER_ASSERTIONS,
                        sensitive_columns=SENSITIVE_COLUMNS, entities=ENTITIES,
+                       sample_rows=opts.sample_rows,
                        retrieve_mode=os.environ.get("RETRIEVE_MODE", "full").strip().lower(),
                        rag_top_k=int(os.environ.get("RAG_TOPK", "6")))
 

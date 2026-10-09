@@ -12,7 +12,7 @@ class BaseAdapter:
     def table_meta(self):
         raise NotImplementedError
 
-    def schema_text(self, sample_rows=2, sensitive_columns=None, tables=None):
+    def schema_text(self, sample_rows=0, sensitive_columns=None, tables=None):
         raise NotImplementedError
 
     def run_query(self, sql, max_rows=100):
@@ -38,7 +38,7 @@ class SqliteAdapter(BaseAdapter):
         import text2sql
         return text2sql.get_table_meta(self.db_path)
 
-    def schema_text(self, sample_rows=2, sensitive_columns=None, tables=None):
+    def schema_text(self, sample_rows=0, sensitive_columns=None, tables=None):
         import text2sql
         return text2sql.build_schema(self.db_path, sample_rows, sensitive_columns, tables)
 

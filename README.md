@@ -222,17 +222,22 @@ python3 ci_check.py --list           # 列出检查项 id
 | 出境内容 | 说明 | 能否关闭 |
 |---|---|---|
 | 库结构 | 表名、列名、DDL 等元数据(`sqlite_master` 提取) | 不能(关掉就没法生成 SQL) |
-| N 行样例数据 | 每表的**真实数据行**前 N 行, 用来让模型理解字段语义; **默认 N=2** | 能: `--sample-rows 0` |
+| N 行样例数据 | 每表的**真实数据行**前 N 行, 用来让模型理解字段语义; **默认 N=0**(2026-10-10 合规整改后) | 能: 显式 `--sample-rows 2` |
 | 用户问题 | 你输入的自然语言问题(交互模式下的补充说明也算) | 不能(输入本身就是它) |
 
 此外, 解释阶段会把**查询结果的前 20 行**(`EXPLAIN_MAX_ROWS`)发给模型用于生成结论文字。
-受限字段(如 `sor_pty_id`)即使落在样例行里, 也会先被 `***` 占位再拼进 prompt;查询结果同列也会被掩码。真实数据请优先 `--sample-rows 0`。
+受限字段(如 `sor_pty_id`)即使落在样例行里, 也会先被 `***` 占位再拼进 prompt;查询结果同列也会被掩码。
 
-**怎么关掉样例数据出境**(引擎与演示层同一个参数, 默认值都是 2, 保持既有评测口径不变):
+**怎么调整样例数据出境**(默认值 2026-10-10 起改为 0, 真实数据场景安全; 评测口径 2 仍在 runner 里显式锁住):
 
 ```bash
-python text2sql_demo/text2sql.py --sample-rows 0 --db <库> "问题"   # CLI: 完全不发样例数据
-python demo/server.py --db <库> --sample-rows 0 --port 8000        # 演示层: 同参数, /api/health 回显实际值
+# 默认(真实数据场景): 完全不发样例数据
+python text2sql_demo/text2sql.py --db <库> "问题"
+python demo/server.py --db <库> --port 8000        # 演示层: /api/health 回显 sample_rows=0
+
+# 显式开样例(评测/调模型用)
+python text2sql_demo/text2sql.py --sample-rows 2 --db <库> "问题"
+python demo/server.py --db <库> --sample-rows 2 --port 8000
 ```
 
 **日志不落敏感内容**: 引擎与演示层的轮转文件日志(`logs/`, 单文件 5MB × 保留 3 个, 已进 `.gitignore`)只记录

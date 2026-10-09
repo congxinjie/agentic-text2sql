@@ -9,8 +9,9 @@
 --offline: 离线演示模式 —— 没有 LLM_API_KEY 也能起服务(界面与 /api/health 可用),
            提问会立即返回"未配置密钥"的明确错误, 不发起任何真实网络调用。
 
---sample-rows 控制每表拼进 schema 的样例数据行数: 默认 2(与引擎一致); 0 = 完全不把样例数据
-发给外部 LLM。/api/health 会回显实际生效值。
+--sample-rows 控制每表拼进 schema 的样例数据行数: 默认 0(真实数据场景安全, 不发样例);
+显式 --sample-rows 2 可恢复历史评测口径(早期 demo 与基准集 runner 用此锁住 100% 数字)。
+/api/health 会回显实际生效值。
 
 约定:
 - 只绑 127.0.0.1, 不对外网开放。
@@ -382,8 +383,8 @@ def main(argv=None):
     ap.add_argument("--biz-context", default=None,
                     help="业务口径 JSON 文件(如 demo/enterprise_biz.json), 不传走引擎默认语义")
     ap.add_argument("--port", type=int, default=8000)
-    ap.add_argument("--sample-rows", type=int, default=2,
-                    help="每表拼进 schema 的样例数据行数(默认 2; 0 = 完全不把样例数据发给外部 LLM)")
+    ap.add_argument("--sample-rows", type=int, default=0,
+                    help="每表拼进 schema 的样例数据行数(默认 0 = 不发样例数据; 显式 2 可恢复历史口径)")
     ap.add_argument("--offline", action="store_true",
                     help="离线演示模式: 无 LLM_API_KEY 也能起服务(仅界面/健康检查; 提问立即报错)")
     ap.add_argument("--log-level", default=os.environ.get("TEXT2SQL_LOG_LEVEL", "INFO"),

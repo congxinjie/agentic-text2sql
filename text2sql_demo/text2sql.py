@@ -21,7 +21,7 @@
     python3 text2sql.py "华东地区有多少客户？"
     python3 text2sql.py --db ../customer_marketing_db/marketing.db "2025年哪个月交易金额最高？"
     python3 text2sql.py            # 无参数进入交互模式(支持追问)
-    python3 text2sql.py --sample-rows 0 "..."   # 不把样例数据发给外部 LLM(默认 2 行)
+    python3 text2sql.py --sample-rows 2 "..."   # 也可显式发 2 行样例(默认 0 行, 真实数据场景安全)
     python3 text2sql.py --log-level DEBUG "..."  # 调日志级别(默认 INFO)
 
 配置(环境变量或 .env.local):
@@ -237,12 +237,14 @@ def llm_json(system: str, user: str, api_key: str, max_tokens: int = 2000) -> di
 
 
 # ================= 数据库与安全 =================
-def build_schema(db_path: str, sample_rows: int = 2,
+def build_schema(db_path: str, sample_rows: int = 0,
                  sensitive_columns: list | None = None,
                  tables: list | None = None) -> str:
-    """从 sqlite_master 提取表结构; sample_rows>0 时每表附 N 行样例数据(默认 2, 保持既有行为)。
+    """从 sqlite_master 提取表结构; sample_rows>0 时每表附 N 行样例数据(默认 0, 真实数据场景安全)。
 
-    M9: sample_rows=0 表示完全不把样例数据拼进 schema(即不发给外部 LLM)。
+    M9 合规整改(2026-10-10): 默认改为 0 —— 不把任何真实数据行拼进 schema 文本, 也不发往外部 LLM。
+    评测 runner 与早期 demo 通过显式 sample_rows=2 锁住既有口径(详见 benchmark/run_eval.py)。
+    privacy: sample_rows=0 时 sensitive_columns 仍生效(若 sample_rows>0 也不发送真实值, 一律 *** 占位)。
     隐私: sensitive_columns 中的列(库内真实列名, 由调用方注入)样例行一律以 *** 占位,
           这些列的真实值绝不进入 schema, 也就不会发往外部 LLM。
     """
@@ -633,7 +635,7 @@ EXPLAIN_SYS = """你是数据分析 Agent 的"结论解释器"。根据用户问
 class QueryAgent:
     def __init__(self, db_path: str, api_key: str, verbose: bool = True,
                  biz_context: str | None = None, sql_hints: dict | None = None,
-                 caliber_assertions: list | None = None, sample_rows: int = 2,
+                 caliber_assertions: list | None = None, sample_rows: int = 0,
                  sensitive_columns: list | None = None, on_stage=None,
                  entities: dict | None = None,
                  retrieve_mode: str = "full", rag_top_k: int = 6,
@@ -1748,7 +1750,7 @@ def main():
         i = args.index("--db")
         db_path = args[i + 1]
         del args[i:i + 2]
-    sample_rows = 2  # M9: 默认 2 行, 与既有行为一致(不得改默认行为)
+    sample_rows = 0  # M9 合规整改(2026-10-10): 默认 0 行, 真实数据场景安全; 显式 --sample-rows 2 可恢复历史行为
     if "--sample-rows" in args:
         i = args.index("--sample-rows")
         raw = args[i + 1] if i + 1 < len(args) else ""
