@@ -20,8 +20,8 @@
 | 实体识别(M13) | 45/46 题产出实体(唯一无实体的 M10 是"账户维度"题, 如实声明 covered=false); 55 项(52 explicit / 3 implied); 五项程序化校验 | — |
 | 意图识别(M13+) | `Understanding.intent` 枚举(查询/筛选/排名/对比/趋势/明细/分析)+ 程序化兜底; 2026-10-08 双跑分布 查询31/排名7/筛选2/趋势2/明细2/对比1/分析1 | — |
 
-> 上表是 **2026-10-08 独立双跑(46 问: 40 题主集 + 6 道「趋势/明细/分析」意图扩展题)**的实测值：`python benchmark/run_eval.py`
-> 连跑两轮, 再用 `python benchmark/average_runs.py runs/run_20261008_020615.json runs/run_20261008_021201.json`
+> 上表是 **2026-10-08 独立双跑(46 问: 40 题主集 + 6 道「趋势/明细/分析」意图扩展题)**的实测值：`python3 benchmark/run_eval.py`
+> 连跑两轮, 再用 `python3 benchmark/average_runs.py runs/run_20261008_020615.json runs/run_20261008_021201.json`
 > 复核（输出「双轮均达标: 46/46」）; 时延取双跑平均。两份逐题明细与 `docs/评测报告-基线.md` 都是这两轮运行的真实产物。
 > 本轮 0 题触发修复(输出列投影生效), 报告 MAX=12.6s; 46 题 e2e 均 100%。
 > 此前 **2026-10-06 M13 复算**双跑均 40/40, 双跑平均 P50 8.1s / P90 11.2s。
@@ -108,16 +108,24 @@ python3 bootstrap.py          # 或双击 bootstrap.command(macOS) / bootstrap.c
 纯标准库本地服务，只绑 `127.0.0.1`，只读访问数据库，API key 只在服务端读取、不进前端：
 
 ```bash
+# 首次先造演示小库(虚构数据, 固定种子, 零下载) —— marketing.db 由脚本生成, 不入库(*.db 在 .gitignore)
+cd customer_marketing_db && python3 create_db.py && cd ..
+
 # 默认演示小库(引擎默认语义)
-python demo/server.py --db customer_marketing_db/marketing.db --port 8000
+python3 demo/server.py --db customer_marketing_db/marketing.db --port 8000
 
 # 项目主库: 券商企业口径经 JSON 文件注入(演示层不内嵌口径)
-python demo/server.py --db "Agentic智能问数在客户营销场景的应用数据集/enterprise.db" \
-                      --biz-context demo/enterprise_biz.json --port 8000
+python3 demo/server.py --db "Agentic智能问数在客户营销场景的应用数据集/enterprise.db" \
+                       --biz-context demo/enterprise_biz.json --port 8000
 
 # 无密钥起界面(离线冒烟): 只提供界面与 /api/health, 提问立即返回明确错误, 不发起网络调用
-python demo/server.py --db customer_marketing_db/marketing.db --offline
+python3 demo/server.py --db customer_marketing_db/marketing.db --offline
 ```
+
+> **两条命令都依赖 `customer_marketing_db/marketing.db`**，它是 `create_db.py` 生成的、**不在仓库里**，
+> 所以全新 clone 必须先跑上面的生成命令 —— 否则会报 `数据库不存在`（`demo/selfcheck.py` 也会因此少一项 PASS）。
+> **平台差异**：Windows 把下面命令里的 `python3` 换成 `python`；macOS 自带 `python3` 若为 3.9（会被版本守卫拦），换成 `python3.11`。
+> 不想逐个敲：直接跑 `python3 bootstrap.py`（见「评委快速通道」），它会自动挑解释器、下载主库并起服务。
 
 
 浏览器打开 `http://127.0.0.1:8000`，一次问答即可看到：结构化计划 / SQL / 结果表格 + 图表 /
@@ -132,12 +140,12 @@ CSV 导出 / 口径说明与默认假设 / 失败自修复过程；下一次提�
 无头自检（不调用 LLM）：
 
 ```bash
-python demo/selfcheck.py           # 依赖 / 域词 / 口径同源 / judge 未动 / 服务冒烟
+python3 demo/selfcheck.py           # 依赖 / 域词 / 口径同源 / judge 未动 / 服务冒烟
 
 # M10 等待期反馈(流式 + 计时)验收
-python benchmark/engine_callback_parity.py    # 引擎阶段回调是纯旁路(桩 LLM: 回调开/关输出逐字节一致)
-python benchmark/sse_same_source_check.py     # 流式终止事件与 POST 响应同源一致(桩 LLM, 确定性)
-python benchmark/sse_stream_check.py          # 真实 LLM: 逐行读 SSE 打时刻 / 与 POST 字段一致 / 密钥 grep
+python3 benchmark/engine_callback_parity.py    # 引擎阶段回调是纯旁路(桩 LLM: 回调开/关输出逐字节一致)
+python3 benchmark/sse_same_source_check.py     # 流式终止事件与 POST 响应同源一致(桩 LLM, 确定性)
+python3 benchmark/sse_stream_check.py          # 真实 LLM: 逐行读 SSE 打时刻 / 与 POST 字段一致 / 密钥 grep
 ```
 
 ## CI / 自动校验（M11）
@@ -252,12 +260,12 @@ python3 ci_check.py --list           # 列出检查项 id
 
 ```bash
 # 默认(真实数据场景): 完全不发样例数据
-python text2sql_demo/text2sql.py --db <库> "问题"
-python demo/server.py --db <库> --port 8000        # 演示层: /api/health 回显 sample_rows=0
+python3 text2sql_demo/text2sql.py --db <库> "问题"
+python3 demo/server.py --db <库> --port 8000        # 演示层: /api/health 回显 sample_rows=0
 
 # 显式开样例(评测/调模型用)
-python text2sql_demo/text2sql.py --sample-rows 2 --db <库> "问题"
-python demo/server.py --db <库> --sample-rows 2 --port 8000
+python3 text2sql_demo/text2sql.py --sample-rows 2 --db <库> "问题"
+python3 demo/server.py --db <库> --sample-rows 2 --port 8000
 ```
 
 **日志不落敏感内容**: 引擎与演示层的轮转文件日志(`logs/`, 单文件 5MB × 保留 3 个, 已进 `.gitignore`)只记录
